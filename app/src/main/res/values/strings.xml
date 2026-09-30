@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">西工程大课表</string>
+
+    <!-- 空状态文案（Spec AC-04：绝不显示空白网格，必须给引导） -->
+    <string name="empty_state_title">还没有课程</string>
+    <string name="empty_state_message">还没有课程，去导入你的课表</string>
+    <string name="empty_state_action_import">从教务导入</string>
+    <string name="empty_state_action_manual">手动添加</string>
+    <string name="empty_state_action_wakeup">导入 WakeUp 文件</string>
+
+    <!-- 周视图（M4-UI：上下周按钮已删，切周改由滑动承担） -->
+    <string name="week_back_to_current">回到本周</string>
+    <string name="term_not_started">未开学</string>
+    <string name="term_finished">本学期已结束</string>
+
+    <!-- 桌面小组件（M3）：选择器名称来自 receiver 的 android:label -->
+    <string name="widget_label">今日课程</string>
+    <string name="widget_description">显示今天的课程与下一节课</string>
+    <!-- M4-W：小组件头部左上校名（仿 WakeUp） -->
+    <string name="widget_school_name">西安工程大学</string>
+</resources>

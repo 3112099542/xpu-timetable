@@ -1,0 +1,10 @@
+# 抓包数据文件：含学号/姓名/Cookie，禁止提交
+*.har
+*.json
+*.png
+*.jpg
+*.txt
+
+# 只保留说明文件
+!README.md
+!.gitignore

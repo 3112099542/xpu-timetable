@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  today_widget_loading.xml —— Glance 首次渲染前的 initialLayout（RemoteViews 静态布局）。
+  背景与正式内容同款圆角（M4-W R-圆角），避免"方形加载态 → 圆角内容"跳变。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/widget_bg_rounded"
+    android:padding="12dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="正在加载…"
+        android:textColor="#73777F"
+        android:textSize="13sp" />
+
+</LinearLayout>

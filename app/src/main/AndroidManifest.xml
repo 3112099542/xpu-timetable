@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      权限声明原则（Spec §10 隐私红线）：
+      本 MVP 只声明必要权限；每项都必须在 Spec 变更记录中登记。
+    -->
+
+        <!-- 教务直连（M2-B）：WebView 需要联网加载 jwglxt 课表页；
+         本权限是唯一联网用途声明，App 不上传任何数据 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      小组件刷新（M7：课前提醒功能已移除，以下两项现在只服务小组件的精确闹钟）
+      - SCHEDULE_EXACT_ALARM：跨天刷新(4003) 与 课程结束刷新(4002) 都用 setExactAndAllowWhileIdle；
+      - RECEIVE_BOOT_COMPLETED：重启后恢复上述两个闹钟。
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />     <!-- 12+ 特殊权限 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />  <!-- 重启后恢复小组件闹钟 -->
+
+<application
+        android:name=".TimetableApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.XpuTimetable">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 系统事件（M7：移入 widget 包，职责只剩小组件）：
+             重启 / 时间 / 时区 / 精确闹钟授权变化 / 覆盖安装后，
+             重排小组件的两条闹钟（跨天 4003 + 课程结束 4002） -->
+        <receiver
+            android:name=".widget.SystemEventReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+                <!-- M6 需求 3：覆盖安装（install -r）后恢复小组件闹钟 -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 桌面小组件（M3）：只上桌面（widgetCategory=home_screen），选择器名称取 android:label -->
+        <receiver
+            android:name=".widget.TodayWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_info" />
+        </receiver>
+
+    </application>
+
+</manifest>

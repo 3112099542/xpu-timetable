@@ -1,0 +1,284 @@
+/*
+ * CourseEditViewModel.kt —— 课程编辑/新增的状态与保存逻辑
+ *
+ * 保存时遵守两条不变量：
+ *   1. **不丢课**：upsertCourse 是整体替换，所以编辑时必须带上该课程的**全部**安排
+ *      （其余安排保留，只改被编辑的那条）。
+ *   2. **用户编辑即受保护（AC-22）**：保存既有课程时调用 Course.markEdited，
+ *      把 source 置为 MANUAL —— 此后任何来源的导入都不会删掉或覆盖它。
+ *
+ * 性能约定（2026-09-17 优化）：**每个表单字段各有一个 setter 方法**，界面通过方法引用
+ * （viewModel::setName）传入回调。原因：Kotlin 内联 lambda 每次重组都会新建实例，
+ * 对 Compose 而言是"不稳定参数"，会导致子组件无法跳过重组——原来一个输入框击键会让
+ * 整张表单（含 12 个色点、多组标签）全部重组，标签上浮动画因此掉帧。
+ *
+ * 健壮性约定：所有仓库调用都包在 runCatching 里，失败转成可读中文错误写入 draft.error，
+ * 绝不让异常冒泡到 viewModelScope（那会直接崩溃）。校验在 save() 里集中做，失败给出明确原因。
+ */
+package com.gould.xputimetable.ui.courseedit
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gould.xputimetable.domain.model.Course
+import com.gould.xputimetable.domain.model.CourseSession
+import com.gould.xputimetable.domain.model.CourseSource
+import com.gould.xputimetable.domain.model.WeekType
+import com.gould.xputimetable.domain.model.markEdited
+import com.gould.xputimetable.domain.repository.TimetableRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.util.UUID
+
+/** 出错的字段（用于精确高亮，避免用字符串 contains 判断）。 */
+enum class DraftField {
+    NAME,
+    TEACHER,
+    CLASSROOM,
+    SECTION_RANGE,
+    WEEK_RANGE,
+    OTHER,
+}
+
+data class CourseDraft(
+    val courseId: String? = null,
+    val sessionId: Long = 0L,
+    val name: String = "",
+    val teacher: String = "",
+    val classroom: String = "",
+    val dayOfWeek: Int = 1,
+    val startSection: Int = 1,
+    val endSection: Int = 2,
+    val startWeek: Int = 1,
+    val endWeek: Int = 16,
+    val weekType: WeekType = WeekType.ALL,
+    /** 载入的安排带显式周次列表（教务精确周次）：编辑页显示提示，保存时清空回到区间语义。 */
+    val hasExactWeeks: Boolean = false,
+    val colorTag: Int = 0,
+    val termId: Long? = null,
+    val loading: Boolean = false,
+    val saved: Boolean = false,
+    val error: String? = null,
+    val errorField: DraftField? = null,
+)
+
+class CourseEditViewModel(
+    private val repository: TimetableRepository,
+    /** 保存/删除属数据变更（M3 §4.5）：重排小组件闹钟 + 立即刷新桌面小组件。失败不影响主流程。默认空实现便于测试。 */
+    private val onDataChanged: suspend () -> Unit = {},
+) : ViewModel() {
+
+    private val _draft = MutableStateFlow(CourseDraft())
+    val draft: StateFlow<CourseDraft> = _draft.asStateFlow()
+
+    private var otherSessions: List<CourseSession> = emptyList()
+    private var originalCourse: Course? = null
+
+    companion object {
+        /** 字段长度上限（防止误输入超长文本把界面撑坏；保存时校验并给出明确提示）。 */
+        const val MAX_NAME_LENGTH = 40
+        const val MAX_TEACHER_LENGTH = 20
+        const val MAX_CLASSROOM_LENGTH = 20
+
+        /** 节次/周次的合法范围（与界面步进器保持一致）。 */
+        val SECTION_RANGE = 1..12
+        val WEEK_RANGE = 1..30
+    }
+
+    // ---------- 字段 setter（界面用方法引用传入，保证可跳过重组）----------
+
+    fun setName(value: String) = _draft.update { it.copy(name = value, error = null, errorField = null) }
+
+    fun setTeacher(value: String) = _draft.update { it.copy(teacher = value, error = null, errorField = null) }
+
+    fun setClassroom(value: String) = _draft.update { it.copy(classroom = value, error = null, errorField = null) }
+
+    fun setDayOfWeek(day: Int) {
+        if (day !in 1..7) return
+        _draft.update { it.copy(dayOfWeek = day) }
+    }
+
+    fun setStartSection(section: Int) = _draft.update {
+        it.copy(startSection = section.coerceIn(SECTION_RANGE.first, SECTION_RANGE.last), error = null, errorField = null)
+    }
+
+    fun setEndSection(section: Int) = _draft.update {
+        it.copy(endSection = section.coerceIn(SECTION_RANGE.first, SECTION_RANGE.last), error = null, errorField = null)
+    }
+
+    fun setStartWeek(week: Int) = _draft.update {
+        it.copy(startWeek = week.coerceIn(WEEK_RANGE.first, WEEK_RANGE.last), error = null, errorField = null)
+    }
+
+    fun setEndWeek(week: Int) = _draft.update {
+        it.copy(endWeek = week.coerceIn(WEEK_RANGE.first, WEEK_RANGE.last), error = null, errorField = null)
+    }
+
+    fun setWeekType(type: WeekType) = _draft.update { it.copy(weekType = type) }
+
+    fun setColorTag(tag: Int) {
+        if (tag < 0) return
+        _draft.update { it.copy(colorTag = tag) }
+    }
+
+    // ---------- 生命周期 ----------
+
+    /** 准备新增（带当前学期与周次范围）。 */
+    fun prepareNew(termId: Long?, defaultWeek: Int, totalWeeks: Int) {
+        if (_draft.value.courseId != null) return
+        otherSessions = emptyList()
+        originalCourse = null
+        _draft.value = CourseDraft(
+            termId = termId,
+            startWeek = 1,
+            endWeek = if (totalWeeks > 0) totalWeeks.coerceIn(WEEK_RANGE.first, WEEK_RANGE.last) else 16,
+        )
+    }
+
+    /** 载入既有课程用于编辑（失败不崩溃，写入可读错误）。 */
+    fun load(courseId: String, sessionId: Long, defaultTotalWeeks: Int = 18) {
+        viewModelScope.launch {
+            _draft.update { it.copy(courseId = courseId, sessionId = sessionId, loading = true) }
+            runCatching {
+                val course = repository.getCourseById(courseId)
+                val sessions = repository.getSessionsByCourseId(courseId)
+                course to sessions
+            }.onSuccess { (course, sessions) ->
+                if (course == null) {
+                    _draft.update { it.copy(loading = false, error = "课程不存在或已被删除", errorField = DraftField.OTHER) }
+                    return@onSuccess
+                }
+                val target = sessions.firstOrNull { it.id == sessionId } ?: sessions.firstOrNull()
+                otherSessions = sessions.filter { it.id != target?.id }
+                originalCourse = course
+                _draft.update {
+                    CourseDraft(
+                        courseId = course.id,
+                        sessionId = target?.id ?: 0L,
+                        name = course.name,
+                        teacher = course.teacher.orEmpty(),
+                        classroom = target?.classroom.orEmpty(),
+                        dayOfWeek = (target?.dayOfWeek ?: 1).coerceIn(1, 7),
+                        startSection = (target?.startSection ?: 1).coerceIn(SECTION_RANGE.first, SECTION_RANGE.last),
+                        endSection = (target?.endSection ?: 2).coerceIn(SECTION_RANGE.first, SECTION_RANGE.last),
+                        startWeek = (target?.startWeek ?: 1).coerceIn(WEEK_RANGE.first, WEEK_RANGE.last),
+                        endWeek = (target?.endWeek ?: defaultTotalWeeks).coerceIn(WEEK_RANGE.first, WEEK_RANGE.last),
+                        weekType = target?.weekType ?: WeekType.ALL,
+                        hasExactWeeks = target?.weeks != null,
+                        colorTag = course.colorTag.coerceAtLeast(0),
+                        termId = course.termId,
+                        loading = false,
+                    )
+                }
+            }.onFailure { e ->
+                _draft.update { it.copy(loading = false, error = e.toUserMessage("读取课程"), errorField = DraftField.OTHER) }
+            }
+        }
+    }
+
+    /** 保存（新增或编辑）。保存成功后 saved = true，由界面负责返回。 */
+    fun save() {
+        viewModelScope.launch {
+            val d = _draft.value
+            validate(d)?.let { (message, field) ->
+                _draft.update { it.copy(error = message, errorField = field) }
+                return@launch
+            }
+            val termId = d.termId ?: runCatching { repository.observeActiveTerm().first()?.id }.getOrNull()
+            if (termId == null) {
+                _draft.update { it.copy(error = "还没有配置学期，无法保存课程", errorField = DraftField.OTHER) }
+                return@launch
+            }
+            val now = System.currentTimeMillis()
+            val courseId = d.courseId ?: UUID.randomUUID().toString()
+            val session = CourseSession(
+                id = d.sessionId,
+                courseId = courseId,
+                dayOfWeek = d.dayOfWeek,
+                startSection = d.startSection,
+                endSection = d.endSection,
+                startWeek = d.startWeek,
+                endWeek = d.endWeek,
+                weekType = d.weekType,
+                weeks = null, // 手动改动周次 → 回到区间语义（Spec P0-A §2.6），精确列表不保留
+                classroom = d.classroom.trim().takeIf { it.isNotEmpty() },
+            )
+            val base = originalCourse
+            val course = if (base != null) {
+                base.copy(
+                    name = d.name.trim(),
+                    teacher = d.teacher.trim().takeIf { it.isNotEmpty() },
+                    colorTag = d.colorTag,
+                    termId = termId,
+                    updatedAt = now,
+                ).markEdited(now)
+            } else {
+                Course(
+                    id = courseId,
+                    name = d.name.trim(),
+                    code = null,
+                    teacher = d.teacher.trim().takeIf { it.isNotEmpty() },
+                    note = null,
+                    colorTag = d.colorTag,
+                    source = CourseSource.MANUAL,
+                    createdAt = now,
+                    updatedAt = now,
+                    termId = termId,
+                    editedAt = null,
+                )
+            }
+            runCatching { repository.upsertCourse(course, otherSessions + session) }
+                .onSuccess {
+                    _draft.update { it.copy(saved = true, error = null, errorField = null) }
+                    runCatching { onDataChanged() } // 数据变更：重排闹钟 + 刷新桌面小组件
+                }
+                .onFailure { e ->
+                    _draft.update { it.copy(error = e.toUserMessage("保存课程"), errorField = DraftField.OTHER) }
+                }
+        }
+    }
+
+    /** 删除整门课程（界面需先做二次确认，见 AC-06）。 */
+    fun delete() {
+        viewModelScope.launch {
+            val id = _draft.value.courseId ?: return@launch
+            runCatching { repository.deleteCourse(id) }
+                .onSuccess {
+                    _draft.update { it.copy(saved = true) }
+                    runCatching { onDataChanged() } // 数据变更：重排闹钟 + 刷新桌面小组件
+                }
+                .onFailure { e ->
+                    _draft.update { it.copy(error = e.toUserMessage("删除课程"), errorField = DraftField.OTHER) }
+                }
+        }
+    }
+
+    /**
+     * 保存前校验（纯逻辑，便于单测）。
+     * 返回 null 表示通过；否则返回（给用户看的中文原因, 出错字段）。
+     */
+    private fun validate(d: CourseDraft): Pair<String, DraftField>? = when {
+        d.name.isBlank() -> "课程名不能为空" to DraftField.NAME
+        d.name.trim().length > MAX_NAME_LENGTH -> "课程名最多 $MAX_NAME_LENGTH 个字" to DraftField.NAME
+        d.teacher.trim().length > MAX_TEACHER_LENGTH -> "教师名最多 $MAX_TEACHER_LENGTH 个字" to DraftField.TEACHER
+        d.classroom.trim().length > MAX_CLASSROOM_LENGTH -> "教室最多 $MAX_CLASSROOM_LENGTH 个字" to DraftField.CLASSROOM
+        d.dayOfWeek !in 1..7 -> "星期必须在周一到周日之间" to DraftField.OTHER
+        d.startSection !in SECTION_RANGE || d.endSection !in SECTION_RANGE -> "节次必须在 ${SECTION_RANGE.first}-${SECTION_RANGE.last} 之间" to DraftField.SECTION_RANGE
+        d.startSection > d.endSection -> "开始节次不能晚于结束节次" to DraftField.SECTION_RANGE
+        d.startWeek !in WEEK_RANGE || d.endWeek !in WEEK_RANGE -> "周次必须在 ${WEEK_RANGE.first}-${WEEK_RANGE.last} 之间" to DraftField.WEEK_RANGE
+        d.startWeek > d.endWeek -> "起始周不能晚于结束周" to DraftField.WEEK_RANGE
+        else -> null
+    }
+}
+
+/** 把异常转成可读的中文提示（不吞异常信息，便于排查）。 */
+private fun Throwable.toUserMessage(action: String): String {
+    val reason = when (this) {
+        is IllegalArgumentException -> message ?: "输入不合法"
+        else -> message ?: this::class.simpleName ?: "未知错误"
+    }
+    return "$action 失败：$reason"
+}

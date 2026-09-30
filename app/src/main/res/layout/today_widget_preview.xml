@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  today_widget_preview.xml —— 系统小组件选择器里的静态预览（API 31+ previewLayout）。
+  与 M4-W 改版后的真实渲染近似（M5 需求 7/8：右上 16sp onSurfaceVariant #43474E）：
+  左上校名 + 右上「M.d 第 N 周 周X」、
+  交替底色课程行（首行加粗）、底部剩余统计。背景与正式内容同款圆角。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg_rounded"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="西安工程大学"
+            android:textColor="#1A1C1E"
+            android:textStyle="bold"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="9.17  第 1 周  周四"
+            android:textColor="#43474E"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:background="#81D8CF"
+        android:text="08:00  高等数学 · A-101"
+        android:textColor="#1A1C1E"
+        android:textStyle="bold"
+        android:textSize="13sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:background="#F8F5D6"
+        android:text="10:00  大学英语 · B-203"
+        android:textColor="#1A1C1E"
+        android:textSize="13sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:background="#81D8CF"
+        android:text="14:00  体育 · 田径场"
+        android:textColor="#1A1C1E"
+        android:textSize="13sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="今天还有 3 节课，加油！"
+        android:textColor="#43474E"
+        android:textSize="12sp" />
+
+</LinearLayout>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件根背景（M4-W R-圆角；M5 需求 6：亮色 #EEEDF3）+ 24dp 圆角（M6 需求 1：16dp 加大一档）；暗色 #111318 变体见 drawable-night/ -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#EEEDF3" />
+    <corners android:radius="24dp" />
+</shape>

@@ -1,0 +1,206 @@
+/*
+ * TimetableViewModel.kt —— 周视图的界面状态持有者
+ *
+ * 作用：把三个数据流合成一个"界面能直接画"的状态：
+ *   ① 激活学期（没有学期 → 引导态）
+ *   ② 作息节次（决定网格行高与节次范围）
+ *   ③ 本周课程安排（由学期 id + 周次从仓库查询）
+ *
+ * 周次的来源与切换（架构 §9.2）：
+ *   - 默认＝自动计算（WeekCalc.currentWeek，纯函数，开学前返回 null）；
+ *   - 用户手动切换后进入"覆盖模式"，顶栏出现「回到本周」；
+ *   - 越界钳制在 1..totalWeeks：开学前显示"未开学"，超出总周数显示"本学期已结束"。
+ *
+ * M7：「覆盖模式」的判定与写入统一走 WeekOverridePolicy（纯函数）——
+ *   目标周 == 本周时视作未覆盖，修掉「回到本周」按钮长亮。
+ *
+ * 健壮性约定（2026-09-17 加固）：
+ *   1. 学期起始日期来自数据库字符串，可能被导入或手工改坏 —— 解析用 runCatching，
+ *      解析失败**不崩溃**，改为按第 1 周展示并给出 termDateInvalid 提示；
+ *   2. 创建学期等写操作失败转为 lastError（界面用 Snackbar 提示），绝不让异常冒泡到
+ *      viewModelScope（那会直接崩溃）。
+ */
+package com.gould.xputimetable.ui.timetable
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gould.xputimetable.domain.WeekCalc
+import com.gould.xputimetable.domain.model.SessionWithCourse
+import com.gould.xputimetable.domain.model.Term
+import com.gould.xputimetable.domain.model.TimeSlot
+import com.gould.xputimetable.domain.repository.TimetableRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
+
+data class TimetableUiState(
+    val loading: Boolean = true,
+    val term: Term? = null,
+    val week: Int = 1,
+    val totalWeeks: Int = 18,
+    /**
+     * 自动周（按学期起始日推算，已钳制在 1..totalWeeks）；起始日缺失/无效或未开学时为 null。
+     *
+     * M7 新增：`setWeek` 用它做覆盖值的归一化（目标周 == 自动周 → 视为未覆盖），
+     * 修掉「回到本周」按钮长亮（详见 WeekOverridePolicy 的文件头）。
+     */
+    val autoWeek: Int? = null,
+    val weekIsOverridden: Boolean = false,
+    val beforeTermStart: Boolean = false,
+    val afterTermEnd: Boolean = false,
+    /** 学期起始日期无法解析（脏数据）：按第 1 周展示并提示，而不是崩溃。 */
+    val termDateInvalid: Boolean = false,
+    /**
+     * 相邻周课程缓存（M4-UI-fix 缺陷 1）：键为周次，只含当前周 ±1（越界侧裁剪不存）。
+     * 滑动过程中邻页按 week 取数渲染，不再是空网格。
+     */
+    val weekItems: Map<Int, List<SessionWithCourse>> = emptyMap(),
+    val timeSlots: List<TimeSlot> = emptyList(),
+    /** 一次性错误消息（界面用 Snackbar 展示后调用 consumeError 清除）。 */
+    val lastError: String? = null,
+)
+
+class TimetableViewModel(
+    private val repository: TimetableRepository,
+) : ViewModel() {
+
+    private val weekOverride = MutableStateFlow<Int?>(null)
+
+    private val transientError = MutableStateFlow<String?>(null)
+
+    init {
+        // 首次安装后补齐预置作息（幂等）；失败只记录、不影响进入周视图
+        viewModelScope.launch {
+            runCatching { repository.ensureDefaultTimeSlots() }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<TimetableUiState> = combine(
+        repository.observeActiveTerm(),
+        repository.observeTimeSlots(),
+        weekOverride,
+        transientError,
+    ) { term, slots, override, error -> Quad(term, slots, override, error) }
+        .flatMapLatest { (term, slots, override, error) ->
+            if (term == null) {
+                flowOf(TimetableUiState(loading = false, lastError = error))
+            } else {
+                val startDate = runCatching { LocalDate.parse(term.startDate) }.getOrNull()
+                val auto = startDate?.let { WeekCalc.currentWeek(it, LocalDate.now()) }
+                val isValidDate = startDate != null
+                // 钳制后的自动周：放假期间 auto 可能超出总周数（如第 20 周），
+                // 归一化与覆盖判定都以"实际能显示到的周"为准，否则第 18 周会被误判为覆盖
+                val autoClamped = auto?.coerceIn(1, term.totalWeeks)
+                val week = (override ?: auto ?: 1).coerceIn(1, term.totalWeeks)
+                // 相邻周预取（M4-UI-fix 缺陷 1）：为 week-1/week/week+1 各订阅一次
+                // observeWeek，越界周次裁剪不查不存；页面按 week 从 weekItems 取数
+                val weeks = listOf(week - 1, week, week + 1)
+                    .filter { it in 1..term.totalWeeks }
+                    .distinct()
+                val weekFlows = weeks.map { w ->
+                    repository.observeWeek(term.id, w).map { schedule -> w to schedule.items }
+                }
+                combine(weekFlows) { pairs ->
+                    val weekItems = pairs.toMap()
+                    TimetableUiState(
+                        loading = false,
+                        term = term,
+                        week = week,
+                        totalWeeks = term.totalWeeks,
+                        autoWeek = autoClamped,
+                        weekIsOverridden = WeekOverridePolicy.isOverridden(override, autoClamped),
+                        beforeTermStart = override == null && isValidDate && auto == null,
+                        afterTermEnd = override == null && auto != null && auto > term.totalWeeks,
+                        termDateInvalid = !isValidDate,
+                        weekItems = weekItems,
+                        timeSlots = slots,
+                        lastError = error,
+                    )
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimetableUiState())
+
+    /** 切换周次（正/负步）。越界自动钳制，不会切出 0 周或负周。 */
+    fun moveWeek(delta: Int) {
+        val state = uiState.value
+        if (state.loading || state.term == null) return
+        setWeek(state.week + delta)
+    }
+
+    /**
+     * 滑动切周（M4-UI R5）：直接设定目标周次。
+     * 与 moveWeek 同一覆盖通道（weekOverride），越界钳制在 1..totalWeeks，
+     * 学期未开始/已结束时滑动仍受限在边界内。
+     *
+     * M7：写入前经 [WeekOverridePolicy.normalize] 归一化 —— 目标周若就是本周，
+     * 视作"未覆盖"（存 null）。这是修掉「回到本周」按钮长亮的关键：
+     * pager 的程序化滚动落定后会把当前页回写进来，若不归一化，
+     * 回到本周后会被立刻重新标记成覆盖态。
+     */
+    fun setWeek(week: Int) {
+        val state = uiState.value
+        if (state.loading || state.term == null) return
+        val target = week.coerceIn(1, state.totalWeeks)
+        weekOverride.value = WeekOverridePolicy.normalize(target, state.autoWeek)
+    }
+
+    /** 回到本周（清除手动覆盖）。 */
+    fun backToCurrentWeek() {
+        weekOverride.value = null
+    }
+
+    /** 错误消息已展示，清除它（避免旋转屏幕后重复弹出）。 */
+    fun consumeError() {
+        transientError.value = null
+    }
+
+    /**
+     * 创建"本学期"（首次使用引导）。
+     *
+     * 取值：以今天所在周一为开学日、默认 18 周；名称按月份推定为 "2026-2027-1"
+     * （9 月及以后为秋季第一学期）。后续可在设置页（M2）修改——这里是"先用起来"的合理默认值，
+     * 不是凭空编造的课程数据。
+     */
+    fun createDefaultTerm() {
+        viewModelScope.launch {
+            runCatching {
+                val monday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                val now = System.currentTimeMillis()
+                repository.upsertTerm(
+                    Term(
+                        id = 0L,
+                        name = termNameOf(monday),
+                        startDate = monday.toString(),
+                        totalWeeks = 18,
+                        isActive = true,
+                        createdAt = now,
+                        updatedAt = now,
+                    ),
+                )
+            }.onFailure { e ->
+                transientError.value = "创建学期失败：${e.message ?: e::class.simpleName ?: "未知错误"}"
+            }
+        }
+    }
+
+    private fun termNameOf(startMonday: LocalDate): String {
+        val year = startMonday.year
+        val autumn = startMonday.monthValue >= 9
+        return if (autumn) "$year-${year + 1}-1" else "${year - 1}-$year-2"
+    }
+}
+
+/** 四元组（combine 最多支持 5 个流，这里用具名数据类提升可读性）。 */
+private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

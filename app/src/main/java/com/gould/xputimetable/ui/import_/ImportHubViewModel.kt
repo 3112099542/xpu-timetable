@@ -1,0 +1,142 @@
+/*
+ * ImportHubViewModel.kt —— 导入中心的状态与文件解析编排
+ *
+ * 两段式导入的前半段（AC-10）：submitPayload 只做「读取 → 解析」，产出
+ * pending（NeedsConfirm，待预览页确认）或 failure（AC-11：结构化原因 + 已选文件
+ * 不丢失——retainedPayload 留在本 VM，可原地重试，无需重新选文件）。
+ *
+ * 健壮性约定：importer/import 的任何异常都转为 failure 文案，绝不冒泡到
+ * viewModelScope（那会崩溃）。parsing=true 时忽略新的提交，防连点。
+ */
+package com.gould.xputimetable.ui.import_
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gould.xputimetable.domain.model.Term
+import com.gould.xputimetable.domain.repository.TimetableRepository
+import com.gould.xputimetable.importer.api.ImportPayload
+import com.gould.xputimetable.importer.api.ImportResult
+import com.gould.xputimetable.importer.api.ScheduleImporter
+import com.gould.xputimetable.parser.api.ParseError
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/** 解析失败的展示态：原因 + 已选文件名（保留展示，AC-11）。 */
+data class ImportFailureUi(
+    val reason: String,
+    val fileName: String?,
+    /** retainedPayload 还在（文件读取成功但解析失败）时允许原地重试。 */
+    val canRetry: Boolean,
+)
+
+data class ImportHubUiState(
+    val term: Term? = null,
+    val parsing: Boolean = false,
+    val failure: ImportFailureUi? = null,
+    /** 解析成功待确认：界面观察后导航到预览页并 consumePending。 */
+    val pending: ImportResult.NeedsConfirm? = null,
+)
+
+class ImportHubViewModel(
+    /** WakeUp CSV 通道（既有，勿改名）。 */
+    private val importer: ScheduleImporter,
+    /** M6：本 App 导出的 JSON 文件/二维码通道——与 CSV 各自独立，避免共用 importer 串味。 */
+    private val jsonFileImporter: ScheduleImporter,
+    private val repository: TimetableRepository,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(ImportHubUiState())
+    val state: StateFlow<ImportHubUiState> = _state.asStateFlow()
+
+    /** AC-11：失败不丢已选文件，保留原始载荷供重试。 */
+    private var retainedPayload: ImportPayload? = null
+
+    init {
+        // 手动添加入口需要当前学期信息（EditTarget.New 的默认周次范围）
+        viewModelScope.launch {
+            runCatching { repository.observeActiveTerm().first() }
+                .onSuccess { term -> _state.update { it.copy(term = term) } }
+        }
+    }
+
+    /** 用户选好文件后由界面调用（payload 由 UI 层读文件装好）——WakeUp CSV 通道。 */
+    fun submitPayload(payload: ImportPayload) {
+        submitWith(importer, payload)
+    }
+
+    /** M6：从 JSON 文件/二维码导入——走与 CSV 不同通道，避免共用 importer 串味。 */
+    fun submitJson(payload: ImportPayload) {
+        submitWith(jsonFileImporter, payload)
+    }
+
+    /** 两个通道的公共提交编排：parsing 防连点 + 失败保留载荷（AC-11）。 */
+    private fun submitWith(which: ScheduleImporter, payload: ImportPayload) {
+        if (_state.value.parsing) return
+        retainedPayload = payload
+        _state.update { it.copy(parsing = true, failure = null, pending = null) }
+        viewModelScope.launch {
+            val result = runCatching { which.import(payload) }
+            result.onSuccess { r ->
+                when (r) {
+                    is ImportResult.NeedsConfirm ->
+                        _state.update { it.copy(parsing = false, pending = r) }
+                    is ImportResult.Failure ->
+                        _state.update { it.copy(parsing = false, failure = r.toUi()) }
+                }
+            }.onFailure { e ->
+                _state.update {
+                    it.copy(
+                        parsing = false,
+                        failure = ImportFailureUi(
+                            reason = "解析失败：${e.message ?: e::class.simpleName ?: "未知错误"}",
+                            fileName = payload.displayName,
+                            canRetry = true,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /** 文件读取本身失败（文件被移走/无权限）：无法重试，只能换文件。 */
+    fun markReadFailure(fileName: String?) {
+        retainedPayload = null
+        _state.update {
+            it.copy(
+                parsing = false,
+                failure = ImportFailureUi(
+                    reason = "无法读取所选文件（可能已被移动、删除或无访问权限）",
+                    fileName = fileName,
+                    canRetry = false,
+                ),
+            )
+        }
+    }
+
+    /** 原地重试：用保留的载荷再解析一次（不丢已选文件）。 */
+    fun retry() {
+        retainedPayload?.let { submitPayload(it) }
+    }
+
+    /** 界面已消费 pending（已导航到预览页）。 */
+    fun consumePending() = _state.update { it.copy(pending = null) }
+}
+
+/** ParseError → 用户可读的结构化原因（AC-11：展示「解析失败：<原因>」）。 */
+private fun ImportResult.Failure.toUi(): ImportFailureUi = ImportFailureUi(
+    reason = when (val e: ParseError = error) {
+        is ParseError.EmptyPayload -> "解析失败：文件内容为空"
+        // M6：JSON 文件通道上线后失败提示改中性表述（原来只提 WakeUp CSV 会误导）
+        is ParseError.SchemaMismatch ->
+            "解析失败：文件格式无法识别（${e.detail}），请确认是 WakeUp 导出的 CSV 或本 App 导出的课表文件"
+        is ParseError.InvalidData -> "解析失败：${e.detail}"
+    },
+    fileName = retainedDisplayName(),
+    canRetry = true,
+)
+
+private fun ImportResult.Failure.retainedDisplayName(): String? = retainedPayload.displayName

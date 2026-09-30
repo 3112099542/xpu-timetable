@@ -1,0 +1,42 @@
+# --- Android / Gradle 标准忽略规则 ---
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+/.idea/
+.DS_Store
+# M8 修正：原为 `/build`，只匹配根目录 —— 实测会漏掉 app/build（344 MB / 4341 文件）
+# 与 baselineprofile/build（178 MB），改成 `build/` 匹配任意层级（含将来新增的模块）。
+build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- 签名与密钥（Spec §10 约束 15：签名密钥绝不入库）---
+*.jks
+*.keystore
+keystore.properties
+
+# --- 运行时产物 ---
+/app/release
+/app/debug
+*.apk
+*.aab
+*.log
+
+# --- 本机工具 / 智能体工作目录 ---
+# .workbuddy/ 是本地协作与记忆目录（含个人备注与决策记录），公开仓库不入库；
+# .mimosa / .video_agent 为本机工具产生的缓存目录，与工程无关。
+.workbuddy/
+.mimosa/
+.video_agent/
+
+# --- 说明 ---
+# docs/ 目录必须入库：它是本项目的规格契约（Spec、ADR、OPEN-DECISIONS），
+# 开源后需要与代码一同演进（DDAD 文档驱动开发）。
+
+# --- 抓包样本（含学号/姓名/Cookie，禁止提交；详见 docs/fixtures/capture/README.md）---
+docs/fixtures/capture/*.har
+docs/fixtures/capture/*.json
+docs/fixtures/capture/*.png

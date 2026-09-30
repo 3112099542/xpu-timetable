@@ -1,0 +1,120 @@
+/*
+ * AppBottomBar.kt —— 底部导航（M4-UI R7 + M5 需求 3 + M6-fix）
+ *
+ * 只有两项，不做日视图或其它 tab（规格 §5 明确不做）。
+ * M5 需求 3：高度 40dp、背景 = 主页背景 50% 透明、tonalElevation 0、文字 10sp。
+ * M6-fix ①：去掉图标，只保留文字 → NavigationBar 的条目项 icon 为必填且布局固定为
+ *   「icon 上 / label 下」，无法只留 label，故改为自定义 Row + 可点 Text。
+ * M6-fix ②：底部必须 navigationBarsPadding() 避让系统导航栏。
+ *   原实现用 NavigationBar + 外层 .height(40.dp)，会把 NavigationBar 自带的
+ *   windowInsets 压扁（底部 insets 48dp > 高度 40dp → 内容区被压到 0 → 底栏消失）；
+ *   且本底栏直接放在 AppNav 的 Column 末尾，不在 Scaffold 内、拿不到 innerPadding。
+ *   三按钮导航下被系统导航栏完全覆盖（实测点击会落到导航栏）。详见 docs/verify/M6/。
+ * 显隐由 AppNav 控制：仅在两个根页（课表 / 我的）显示；二级页保持沉浸。
+ */
+package com.gould.xputimetable.ui.navigation
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gould.xputimetable.ui.theme.DarkSurface
+import com.gould.xputimetable.ui.theme.LightPageBackground
+
+private const val LABEL_TIMETABLE = "课表"
+private const val LABEL_PROFILE = "我的"
+
+/** M5 需求 3 的底栏高度（保持 40dp，不因去图标而改动既定尺寸）。 */
+private val BarHeight = 40.dp
+
+/** M6-fix：无图标后文字是唯一元素，10sp 偏小 → 提到 M3 labelMedium 的标准值 12sp。 */
+private val LabelFontSize = 12.sp
+
+@Composable
+internal fun AppBottomBar(
+    current: AppScreen,
+    onOpenTimetable: () -> Unit,
+    onOpenProfile: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val barColor = if (isSystemInDarkTheme()) {
+        DarkSurface.copy(alpha = 0.5f)
+    } else {
+        LightPageBackground.copy(alpha = 0.5f)
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            // M6-fix ②：必须在 height **之前**（外层）—— 否则 insets 会被 40dp 压扁。
+            .navigationBarsPadding()
+            .height(BarHeight)
+            .background(barColor),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BottomBarLabel(
+            label = LABEL_TIMETABLE,
+            isSelected = current == AppScreen.Timetable,
+            onClick = onOpenTimetable,
+            modifier = Modifier.weight(1f),
+        )
+        BottomBarLabel(
+            label = LABEL_PROFILE,
+            isSelected = current == AppScreen.Profile,
+            onClick = onOpenProfile,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * 底栏的单个文字项（M6-fix：无图标版本的 tab）。
+ * 触摸区 = 整块（fillMaxHeight × weight），因此 40dp 高度即触摸目标高度。
+ */
+@Composable
+private fun BottomBarLabel(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 选中态：唯一强调色 primary + 加粗；未选中：onSurfaceVariant + 常规
+    // （与既有设计一致：全项目唯一强调色 = colorScheme.primary，只给关键状态）
+    val color = if (isSelected) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick)
+            .semantics {
+                role = Role.Tab           // 无障碍：告诉读屏这是 tab
+                selected = isSelected     // 无障碍：暴露选中态（替代原 M3 底栏条目项的语义）
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            fontSize = LabelFontSize,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            color = color,
+        )
+    }
+}

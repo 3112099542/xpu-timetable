@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式下的窗口主题：避免启动瞬间白屏闪烁（深色是同等公民，见 UIUX 文档 §4.3） -->
+    <style name="Theme.XpuTimetable" parent="android:Theme.Material.NoActionBar" />
+</resources>

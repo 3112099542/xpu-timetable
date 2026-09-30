@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      窗口级主题：只负责 Activity 启动时的窗口外观，界面配色全部由 Compose 主题（ui/theme/Theme.kt）负责。
+      父主题用平台自带的 Material 无标题栏主题，避免为此额外引入 Material Components XML 依赖。
+    -->
+    <style name="Theme.XpuTimetable" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

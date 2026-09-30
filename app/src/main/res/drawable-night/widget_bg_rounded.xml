@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件根背景（M4-W R-圆角）暗色变体：#111318 + 24dp 圆角（M6 需求 1：16dp 加大一档） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#111318" />
+    <corners android:radius="24dp" />
+</shape>

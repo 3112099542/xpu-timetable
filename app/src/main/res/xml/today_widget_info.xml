@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小组件元数据（M3，规格 §4.4；M5 需求 5：minHeight/minResizeHeight 110→88dp，约缩 1/5）。
+  updatePeriodMillis（M7 需求 4）：由 0 改为 3600000（每小时）——
+    原为 0 时刷新完全依赖 App 内事件与自排闹钟，一旦闹钟链路失效（覆盖安装/系统清理），
+    桌面数据会一直停在旧值。加系统周期刷新作为兜底链路：它由系统调度、不依赖本 App 的闹钟逻辑。
+    取每小时（而非系统允许的最小 30 分钟）：产品负责人权衡后选择更省电的一档，
+    兜底价值仍在（跨天 00:05 与课程结束 4002 两条精确闹钟负责时效性，本项只补"闹钟意外失效"）。
+    代价：设备**醒着**时每小时触发一次重绘（读本地库 + 重绘一个小组件，毫秒级）；
+    平台保证该机制**不唤醒休眠设备**，对续航影响很小。要最省电可改回 0。
+  widgetCategory 只上桌面：课程名/教室属个人作息信息，不上锁屏（隐私口径同 AC-09）。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:minWidth="180dp"
+    android:minHeight="88dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="88dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="3600000"
+    android:initialLayout="@layout/today_widget_loading"
+    android:previewLayout="@layout/today_widget_preview"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_description"
+    tools:targetApi="s" />
