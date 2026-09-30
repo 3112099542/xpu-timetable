@@ -173,6 +173,12 @@ ANDROID_SERIAL=<serial> ./gradlew :baselineprofile:connectedNonMinifiedReleaseAn
 - 本项目仓库已建立：分支 `main`，两次提交（`ec4f5fe` 初始化 / `f7e37c8` M8）
 - 提交前做了隐私扫描：抓包样本（含 Cookie）与签名密钥按 `.gitignore` 排除；
   发现**教务解析测试夹具里残留真实学号**（10 位，`code` 字段），已脱敏为同形状假值并跑测试确认无破坏
+- 同一份夹具里的**教师姓名**（9 个 `teachers[]` + 10 个 `teacherAssignmentString`）一并脱敏：
+  测试文件头本就声明"已脱敏"，且测试只断言内联假名（张三/李四），不依赖夹具真值。
+  做法保守：**只替换 2–5 字的独立姓名 token 为同长度假名**（保留 `（R）` 标记与分隔符，
+  解析覆盖度不变），并加两道自检 —— ① 教师字段内不允许残留假名池之外的汉字串（实测 0）；
+  ② 逐路径审计，改动只落在 `person.nameZh` / `dateTimePlacePersonText` / `teachers[]` /
+  `teacherAssignmentString`，课程名与教室等零改动。单测 237 用例仍全绿。
 - 修正 `.gitignore` 缺陷：原 `/build` 只匹配根目录，会漏掉 `app/build`（344 MB / 4341 文件）
   与 `baselineprofile/build`（178 MB）→ 改为 `build/`
 
@@ -188,8 +194,9 @@ ANDROID_SERIAL=<serial> ./gradlew :baselineprofile:connectedNonMinifiedReleaseAn
 | （老大追加）把 git 搞定 | ✅ 本地 git 全功能可用；push 仅差凭据 |
 
 **遗留**
-1. **真机 A/B 冷启动测量**（待手机可用）：`StartupBenchmarks` 已就绪，一条命令即可；
+1. **真机 A/B 冷启动测量**（手机不在手边，无法进行）：`StartupBenchmarks` 已就绪，手机可用后一条命令跑完；
 2. **Baseline Profile 建议在真机重采一次**：当前 profile 采自模拟器（API 36 与真机同版本，
    但热点分布与真机不同）。流程已固化，重采后 `baseline-prof.txt` 会更新；
 3. **发布前换正式 keystore**（现用 debug 密钥签名 release）；
-4. 测试夹具里的**教师姓名**未脱敏（半公开信息，但与被抓学生的课表绑定）—— 待老大裁决是否处理。
+4. **push 只差凭据**：网络通路已验证（`git-receive-pack` 返回 401 而非超时），
+   需 PAT 或 SSH 公钥（两者都只能在 GitHub 侧生成/登记）。
