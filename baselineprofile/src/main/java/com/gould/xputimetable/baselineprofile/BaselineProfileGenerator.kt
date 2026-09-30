@@ -30,16 +30,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** 被测应用包名（与 app/build.gradle.kts 的 applicationId 一致）。 */
-private const val TARGET_PACKAGE = "com.gould.xputimetable"
-
-/** "周视图已渲染"的判定依据：顶栏周次标题「第 N 周」。 */
-private const val WEEK_TITLE_HINT = "第"
-
-/** 底部导航两项的文案。 */
-private const val TAB_TIMETABLE = "课表"
-private const val TAB_PROFILE = "我的"
-
 private const val WAIT_MILLIS = 5_000L
 private const val SWIPE_STEPS = 24
 
@@ -51,7 +41,14 @@ class BaselineProfileGenerator {
 
     @Test
     fun generate() {
-        rule.collect(packageName = TARGET_PACKAGE, maxIterations = 8) {
+        // includeInStartupProfile 必须**显式**打开：androidx.benchmark 1.5.0 起默认为 false，
+        // 不传会得到「No startup profile rules were generated」警告 —— 而 startup profile
+        // 正是让系统在安装期把启动路径 AOT 编译掉的那部分，对"刚打开卡"最直接有效。
+        rule.collect(
+            packageName = TARGET_PACKAGE,
+            maxIterations = 8,
+            includeInStartupProfile = true,
+        ) {
             pressHome()
             startActivityAndWait()
             awaitTimetableContent()
