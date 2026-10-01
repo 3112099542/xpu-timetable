@@ -54,6 +54,8 @@ fun TimetableScreen(
     onAddCourse: () -> Unit,
     onEditCourse: (courseId: String, sessionId: Long) -> Unit,
     onOpenImport: () -> Unit,
+    /** M9：空态「创建本学期」不再写死"本周一 + 18 周"，改为进学期设置页由用户选起始日。 */
+    onCreateTerm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -97,7 +99,7 @@ fun TimetableScreen(
                 }
 
                 state.term == null -> {
-                    NoTermState(onCreateTerm = viewModel::createDefaultTerm)
+                    NoTermState(onCreateTerm = onCreateTerm)
                 }
 
                 else -> {
@@ -152,7 +154,7 @@ private fun NoTermState(onCreateTerm: () -> Unit) {
         Text(text = "还没有学期", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "先创建本学期（默认从本周一开始、共 18 周），就可以开始添加课程了",
+            text = "先创建本学期：选好开学第一周的周一，之后才能按周显示课程",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

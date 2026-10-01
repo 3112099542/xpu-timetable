@@ -1,7 +1,7 @@
 /*
  * XpuWebImporter.kt —— 教务直连通道的编排层（两段式导入，AC-10）
  *
- * 与 WakeupCsvImporter 同构：import() 只解析不写库（预览确认前零写入），
+ * 与 JsonFileImporter 同构：import() 只解析不写库（预览确认前零写入），
  * commit() 才走 repository.applyImport 同一入口（按来源替换 + MANUAL 双防线，AC-20）。
  *
  * semesterId 的来源：拦截到的 print-data URL（ImportPayload.uri 携带），

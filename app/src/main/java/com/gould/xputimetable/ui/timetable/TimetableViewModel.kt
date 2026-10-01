@@ -39,9 +39,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.TemporalAdjusters
 
 data class TimetableUiState(
     val loading: Boolean = true,
@@ -164,41 +162,6 @@ class TimetableViewModel(
     /** 错误消息已展示，清除它（避免旋转屏幕后重复弹出）。 */
     fun consumeError() {
         transientError.value = null
-    }
-
-    /**
-     * 创建"本学期"（首次使用引导）。
-     *
-     * 取值：以今天所在周一为开学日、默认 18 周；名称按月份推定为 "2026-2027-1"
-     * （9 月及以后为秋季第一学期）。后续可在设置页（M2）修改——这里是"先用起来"的合理默认值，
-     * 不是凭空编造的课程数据。
-     */
-    fun createDefaultTerm() {
-        viewModelScope.launch {
-            runCatching {
-                val monday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                val now = System.currentTimeMillis()
-                repository.upsertTerm(
-                    Term(
-                        id = 0L,
-                        name = termNameOf(monday),
-                        startDate = monday.toString(),
-                        totalWeeks = 18,
-                        isActive = true,
-                        createdAt = now,
-                        updatedAt = now,
-                    ),
-                )
-            }.onFailure { e ->
-                transientError.value = "创建学期失败：${e.message ?: e::class.simpleName ?: "未知错误"}"
-            }
-        }
-    }
-
-    private fun termNameOf(startMonday: LocalDate): String {
-        val year = startMonday.year
-        val autumn = startMonday.monthValue >= 9
-        return if (autumn) "$year-${year + 1}-1" else "${year - 1}-$year-2"
     }
 }
 

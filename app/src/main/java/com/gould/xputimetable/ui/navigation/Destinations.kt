@@ -1,9 +1,11 @@
 /*
  * Destinations.kt —— 导航目标类型与目的地装配（M6 自 AppNav.kt 拆出，守 300 行门禁）
  *
- * 内容：EditTarget / AppScreen（含 M6 新增的 QrShare 目的地）/ simpleFactory 工厂 /
- * ProfileDestination（「我的」页目的地，原 AppNav 最长的 when 分支）。
+ * 内容：EditTarget / AppScreen（M9 增 TermSetup 与 ProfileSub）/ simpleFactory 工厂 /
+ * 三个「我的」相关目的地（根页 Profile / 学期设置 TermSetup / 二级页 ProfileSub）。
  * 与 AppNav.kt 同包（ui.navigation），互引无需 import。
+ *
+ * M9：导入中心的 WakeUp CSV 通道已删除（产品负责人要求）——本文件不再需要 wakeupImporter。
  */
 package com.gould.xputimetable.ui.navigation
 
@@ -22,8 +24,11 @@ import com.gould.xputimetable.importer.api.ScheduleImporter
 import com.gould.xputimetable.ui.import_.ImportHubScreen
 import com.gould.xputimetable.ui.import_.ImportHubViewModel
 import com.gould.xputimetable.ui.import_.readImportPayload
+import com.gould.xputimetable.ui.settings.ProfileSubPage
+import com.gould.xputimetable.ui.settings.ProfileSubScreen
 import com.gould.xputimetable.ui.settings.SettingsScreen
 import com.gould.xputimetable.ui.settings.SettingsViewModel
+import com.gould.xputimetable.ui.settings.TermSetupScreen
 import com.gould.xputimetable.ui.transfer.readQrImagePayload
 import kotlinx.coroutines.launch
 
@@ -38,7 +43,7 @@ internal sealed interface EditTarget {
     data class Edit(val courseId: String, val sessionId: Long) : EditTarget
 }
 
-/** 全部页面状态（M4-UI 起为七状态；M6 增 QrShare：二维码分享页）。 */
+/** 全部页面状态（M9 起十状态：新增学期设置 TermSetup 与「我的」二级页 ProfileSub）。 */
 internal sealed interface AppScreen {
     data object Timetable : AppScreen
     data class CourseEdit(val target: EditTarget) : AppScreen
@@ -48,6 +53,15 @@ internal sealed interface AppScreen {
     data class ImportPreview(val needsConfirm: ImportResult.NeedsConfirm) : AppScreen
     data object Profile : AppScreen
     data object QrShare : AppScreen
+
+    /**
+     * 学期设置页（M9）：起始日 + 总周数，改完**自动保存**。
+     * [fromEmptyState] = true 表示从课表空态的「创建本学期」进来（创建成功后回课表）。
+     */
+    data class TermSetup(val fromEmptyState: Boolean) : AppScreen
+
+    /** 「我的」页的二级页（M9）：权限 / 关于。 */
+    data class ProfileSub(val page: ProfileSubPage) : AppScreen
 }
 
 /** 简易 ViewModel 工厂（避免为每个 ViewModel 各写一个匿名对象）。 */
@@ -56,28 +70,83 @@ internal inline fun <reified VM : ViewModel> simpleFactory(crossinline create: (
         override fun <T : ViewModel> create(modelClass: Class<T>): T = create() as T
     }
 
-/** 「我的」页目的地（M4-UI R7）：承载原设置内容 + M6 的导出/二维码入口。根页无返回箭头。 */
+/**
+ * 「我的」/「学期设置」/「我的二级页」共用同一个 SettingsViewModel。
+ *
+ * 这些页面在同一个 ViewModelStore（Activity）下取同名 VM，因此拿到的是**同一实例** ——
+ * 于是"在学期设置页改完 → 回到我的页立刻看到新值"无需任何额外同步。
+ * 也正因如此，三个入口都要传真实的 canScheduleExact / onDataChanged，
+ * 否则先进入的页面用空实现创建了 VM，后进入的页面会一直用那个空实现。
+ */
+@Composable
+private fun settingsViewModel(
+    repository: TimetableRepository,
+    canScheduleExact: () -> Boolean,
+    onDataChanged: suspend () -> Unit,
+): SettingsViewModel = viewModel(
+    factory = simpleFactory {
+        SettingsViewModel(
+            repository = repository,
+            canScheduleExact = canScheduleExact,
+            onTermChanged = onDataChanged,
+        )
+    },
+)
+
+/** 「我的」页根页目的地（M9：分组列表 + 二级页入口）。根页无返回箭头。 */
 @Composable
 internal fun ProfileDestination(
     repository: TimetableRepository,
-    /** 精确闹钟授权检查（M7：小组件刷新精度依赖它）。 */
     canScheduleExact: () -> Boolean,
     onDataChanged: suspend () -> Unit,
+    onShowHint: (String) -> Unit,
+    onOpenTermSetup: () -> Unit,
+    onOpenSubPage: (ProfileSubPage) -> Unit,
     onShareQr: () -> Unit,
 ) {
-    val vm: SettingsViewModel = viewModel(
-        factory = simpleFactory {
-            SettingsViewModel(
-                repository = repository,
-                canScheduleExact = canScheduleExact,
-                onTermChanged = onDataChanged,
-            )
-        },
-    )
     SettingsScreen(
-        viewModel = vm,
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
         repository = repository,
+        onOpenTermSetup = onOpenTermSetup,
+        onOpenSubPage = onOpenSubPage,
         onShareQr = onShareQr,
+        onShowHint = onShowHint,
+    )
+}
+
+/** 「我的」页二级页目的地（权限 / 关于）。 */
+@Composable
+internal fun ProfileSubDestination(
+    page: ProfileSubPage,
+    repository: TimetableRepository,
+    canScheduleExact: () -> Boolean,
+    onDataChanged: suspend () -> Unit,
+    onBack: () -> Unit,
+) {
+    ProfileSubScreen(
+        page = page,
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
+        onBack = onBack,
+    )
+}
+
+/** 学期设置页目的地（M9）：创建与编辑共用，自动保存。 */
+@Composable
+internal fun TermSetupDestination(
+    fromEmptyState: Boolean,
+    repository: TimetableRepository,
+    canScheduleExact: () -> Boolean,
+    onDataChanged: suspend () -> Unit,
+    onShowHint: (String) -> Unit,
+    onBack: () -> Unit,
+    onDone: () -> Unit,
+) {
+    TermSetupScreen(
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
+        fromEmptyState = fromEmptyState,
+        onBack = onBack,
+        onCreated = onDone,
+        onShowHint = onShowHint,
     )
 }
 
@@ -85,7 +154,6 @@ internal fun ProfileDestination(
 @Composable
 internal fun ImportHubDestination(
     repository: TimetableRepository,
-    wakeupImporter: ScheduleImporter,
     jsonFileImporter: ScheduleImporter,
     notice: String?,
     onNoticeShown: () -> Unit,
@@ -96,7 +164,7 @@ internal fun ImportHubDestination(
     onParsed: (ImportResult.NeedsConfirm) -> Unit,
 ) {
     val vm: ImportHubViewModel = viewModel(
-        factory = simpleFactory { ImportHubViewModel(wakeupImporter, jsonFileImporter, repository) },
+        factory = simpleFactory { ImportHubViewModel(jsonFileImporter, repository) },
     )
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

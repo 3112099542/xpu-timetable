@@ -1,7 +1,7 @@
 /*
  * JsonFileImporter.kt —— 本 App 导出的课表文件（.json）导入通道（M6 需求 6-A）
  *
- * 照抄 WakeupCsvImporter 的形态：本类不含 JSON 文法细节（那是 ScheduleCodec 的职责），
+ * 与 XpuWebImporter 同形态：本类不含 JSON 文法细节（那是 ScheduleCodec 的职责），
  * 只做编排——import() 只解析不写库（AC-10），commit() 走仓库统一入口 applyImport
  * （按来源整体替换、MANUAL 保护等语义全部由仓库保证，本通道不自带第二套）。
  *

@@ -17,8 +17,6 @@
 package com.gould.xputimetable.ui.navigation
 
 import android.provider.Settings
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
-import androidx.activity.OnBackPressedCallback
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -28,9 +26,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,7 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gould.xputimetable.domain.model.CourseSource
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import com.gould.xputimetable.importer.api.ScheduleImporter
-import com.gould.xputimetable.ui.components.TopHint
+import com.gould.xputimetable.ui.components.BottomHint
 import com.gould.xputimetable.ui.courseedit.CourseEditScreen
 import com.gould.xputimetable.ui.courseedit.CourseEditViewModel
 import com.gould.xputimetable.ui.import_.CleanupScreen
@@ -62,13 +60,12 @@ import com.gould.xputimetable.ui.web.CourseCaptureViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 
-/** 二次返回退出的提示文案（M7：由 Snackbar 改为顶部浮层，文案集中于此）。 */
+/** 二次返回退出的提示文案（M7 起由 Snackbar 改为导航层浮层；M9 改为底部弹出）。 */
 private const val EXIT_HINT = "再按一次退出应用"
 
 @Composable
 internal fun AppNav(
     repository: TimetableRepository,
-    wakeupImporter: ScheduleImporter,
     jsonFileImporter: ScheduleImporter,
     xpuImporter: ScheduleImporter,
     canScheduleExact: () -> Boolean,
@@ -87,50 +84,33 @@ internal fun AppNav(
     // 导航层持有的跨页提示（M2-C：清理完成后送回导入中心的 Snackbar）
     var hubNotice by remember { mutableStateOf<String?>(null) }
 
-    // 首页二次返回退出：退出窗口由 BackPolicy 独立管理；提示本身渲染在导航根层的 TopHint 上
-    // （见下方内容区 Box 内），**不再复用页面 Scaffold 的 SnackbarHost** ——
-    // 那样会随页面切换重挂而重放提示（M7 修复）。
+    // 首页二次返回退出：退出窗口由 BackPolicy 独立管理；提示走下面的全局提示通道。
     val snackbarHostState = remember { SnackbarHostState() }
-    var lastHintAt by remember { mutableStateOf<Long?>(null) }
-    var exitHintVisible by remember { mutableStateOf(false) }
-    // 每次按键自增：让驻留计时协程重启（连按会重新计时），也保证同一毫秒内连按仍触发刷新
-    var exitHintNonce by remember { mutableIntStateOf(0) }
 
-    // 提示的显示 → 驻留 → 隐藏集中在这一处；按键回调只负责 nonce++
-    LaunchedEffect(exitHintNonce) {
-        if (exitHintNonce == 0) return@LaunchedEffect
-        exitHintVisible = true
+    // M9：**全局瞬时提示通道** —— 任何页面都能发一条底部提示
+    // （退出提示 / 学期自动保存失败 / 学期已创建…）。宿主在导航层而非页面 Scaffold，
+    // 因此切页不会重放（这正是原「保存学期」Snackbar 的缺陷来源）。
+    var hintText by remember { mutableStateOf<String?>(null) }
+    var hintNonce by remember { mutableIntStateOf(0) }
+    val showHint: (String) -> Unit = remember {
+        { message: String -> hintText = message; hintNonce++ }
+    }
+    // 显示 → 驻留 → 隐藏集中在这一处；发送方只管调用 showHint
+    LaunchedEffect(hintNonce) {
+        if (hintNonce == 0) return@LaunchedEffect
         delay(Hint.VisibleMillis)
-        exitHintVisible = false
+        hintText = null
     }
 
-    // 系统返回键接线：canonical 模式，建一次（remember），闭包读栈深/提示时间取最新值
-    val dispatcherOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
-    val dispatcher = dispatcherOwner.onBackPressedDispatcher
-    val backCallback = remember {
-        object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                when (BackPolicy.decide(backStack.size, lastHintAt, System.currentTimeMillis())) {
-                    BackAction.Pop -> goBack()
-                    BackAction.HintAndArm -> {
-                        lastHintAt = System.currentTimeMillis()
-                        exitHintNonce++
-                    }
-                    BackAction.Exit -> {
-                        // 交回系统默认：保留退出动画；不再设回 enabled（依赖 Activity 重建恢复）
-                        isEnabled = false
-                        dispatcher.onBackPressed()
-                    }
-                }
-            }
-        }
-    }
-    DisposableEffect(dispatcher) {
-        dispatcher.addCallback(backCallback)
-        onDispose { backCallback.remove() }
-    }
+    // 系统返回键接线（M9 抽到 BackKeyWiring.kt：纯接线 + 为 AppNav 腾行数）
+    BackKeyWiring(
+        backStackSize = { backStack.size },
+        onPopBackStack = ::goBack,
+        onShowExitHint = { showHint(EXIT_HINT) },
+    )
 
     // M4-UI R7：内容区 + 底部导航（仅两个根页显示，二级页保持沉浸）
+    val showBottomBar = screen == AppScreen.Timetable || screen == AppScreen.Profile
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             // M5 §3.2.4/§3.2.8：页面切换淡入 450ms + 1/8 高度上移、淡出 200ms；系统「减少动画」时直切
@@ -161,6 +141,8 @@ internal fun AppNav(
                                 navigateTo(AppScreen.CourseEdit(EditTarget.Edit(courseId, sessionId)))
                             },
                             onOpenImport = { navigateTo(AppScreen.ImportHub) },
+                            // M9：空态「创建本学期」进学期设置页，由用户选起始日（不再写死本周一）
+                            onCreateTerm = { navigateTo(AppScreen.TermSetup(fromEmptyState = true)) },
                         )
                     }
 
@@ -184,7 +166,6 @@ internal fun AppNav(
 
                     AppScreen.ImportHub -> ImportHubDestination(
                         repository = repository,
-                        wakeupImporter = wakeupImporter,
                         jsonFileImporter = jsonFileImporter,
                         notice = hubNotice,
                         onNoticeShown = { hubNotice = null },
@@ -224,15 +205,14 @@ internal fun AppNav(
                     }
 
                     is AppScreen.ImportPreview -> {
-                        // 覆盖范围按本批数据的来源计算（WEB / WAKEUP_CSV / FILE_JSON，预览页已泛化）；
+                        // 覆盖范围按本批数据的来源计算（WEB / FILE_JSON，预览页已泛化）；
                         // commit 走与解析同通道的 importer（两者最终都汇入 applyImport 同一入口）。
-                        // M6：三分支显式分派——原先 FILE_JSON 会落到 wakeupImporter（隐式耦合）
+                        // M9：WakeUp CSV 通道删除后，非 WEB 的数据一律走本 App 的 JSON 通道
                         val source = current.needsConfirm.parsed.courses.firstOrNull()?.source
-                            ?: CourseSource.WAKEUP_CSV
+                            ?: CourseSource.FILE_JSON
                         val importer = when (source) {
                             CourseSource.WEB -> xpuImporter
-                            CourseSource.FILE_JSON -> jsonFileImporter
-                            else -> wakeupImporter
+                            else -> jsonFileImporter
                         }
                         val vm: ImportPreviewViewModel = viewModel(
                             factory = simpleFactory { ImportPreviewViewModel(importer, repository, onDataChanged) },
@@ -249,6 +229,9 @@ internal fun AppNav(
                         repository = repository,
                         canScheduleExact = canScheduleExact,
                         onDataChanged = onDataChanged,
+                        onShowHint = showHint,
+                        onOpenTermSetup = { navigateTo(AppScreen.TermSetup(fromEmptyState = false)) },
+                        onOpenSubPage = { page -> navigateTo(AppScreen.ProfileSub(page)) },
                         onShareQr = { navigateTo(AppScreen.QrShare) },
                     )
 
@@ -258,21 +241,43 @@ internal fun AppNav(
                             onBack = ::goBack,
                         )
                     }
+
+                    is AppScreen.TermSetup -> TermSetupDestination(
+                        fromEmptyState = current.fromEmptyState,
+                        repository = repository,
+                        canScheduleExact = canScheduleExact,
+                        onDataChanged = onDataChanged,
+                        onShowHint = showHint,
+                        onBack = ::goBack,
+                        onDone = ::popToRoot,
+                    )
+
+                    is AppScreen.ProfileSub -> ProfileSubDestination(
+                        page = current.page,
+                        repository = repository,
+                        canScheduleExact = canScheduleExact,
+                        onDataChanged = onDataChanged,
+                        onBack = ::goBack,
+                    )
                 }
             }
 
-            // 退出提示（M7）：挂在导航层这个 Box 上（**页面 Scaffold 之外**），因此
-            //   ① 页面切换不会重建宿主 —— 提示不会被重放，按自己的节奏消失；
-            //   ② 作为 Box 的最后一个子项绘制 —— 全局置顶，覆盖页面内容与底栏之上。
-            TopHint(
-                visible = exitHintVisible,
-                text = EXIT_HINT,
-                modifier = Modifier.align(Alignment.TopCenter),
+            // 底部提示浮层（M7 建立 / M9 改为底部 + 黑灰）：挂在导航层这个 Box 上
+            // （**页面 Scaffold 之外**）→ ① 切页不重建宿主，提示不会被重放；
+            // ② 作为 Box 最后一个子项绘制，盖在页面内容之上；③ 位于内容区底部，
+            // 有底部导航栏时浮在导航栏**上方**，不挡两个 tab。
+            BottomHint(
+                visible = hintText != null,
+                text = hintText.orEmpty(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // 二级页不显示底部导航栏，内容区直抵屏幕底 → 需自行避让系统导航栏
+                    .then(if (showBottomBar) Modifier else Modifier.navigationBarsPadding()),
             )
         }
 
         // 底部导航（R7）：仅在两个根页显示；点击复用现有返回栈，不引入新导航机制
-        if (screen == AppScreen.Timetable || screen == AppScreen.Profile) {
+        if (showBottomBar) {
             AppBottomBar(
                 current = screen,
                 onOpenTimetable = { popToRoot() },

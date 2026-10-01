@@ -32,7 +32,6 @@ class MainActivity : ComponentActivity() {
             XpuTimetableTheme {
                 AppNav(
                     repository = container.repository,
-                    wakeupImporter = container.wakeupCsvImporter,
                     jsonFileImporter = container.jsonFileImporter,
                     xpuImporter = container.xpuWebImporter,
                     canScheduleExact = container::canScheduleExactAlarms,

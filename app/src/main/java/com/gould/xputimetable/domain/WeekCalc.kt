@@ -166,4 +166,16 @@ object WeekCalc {
         }
         return null
     }
+
+    /**
+     * 按开学日推定学期名（M9：从 TimetableViewModel 提到此处共用 —— 创建学期现在有
+     * 「课表页空态」与「学期设置页」两个入口，命名规则必须同源）。
+     *
+     * 规则：9 月及以后开学算秋季第一学期（`YYYY-YYYY+1-1`），否则算春季第二学期
+     * （`YYYY-1-YYYY-2`）。纯函数，便于单测。
+     */
+    fun termNameOf(startDate: LocalDate): String {
+        val year = startDate.year
+        return if (startDate.monthValue >= 9) "$year-${year + 1}-1" else "${year - 1}-$year-2"
+    }
 }

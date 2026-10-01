@@ -1,9 +1,12 @@
 /*
  * ImportHubScreen.kt —— 导入中心页（M2-A）
  *
- * 三条通道（AC-08）：教务直连（M2-B 起开放：内置 WebView 登录并自动识别课表）/
- * WakeUp CSV（无网络可用）/ 手动添加。选择文件用 ActivityResultContracts.GetContent（SAF，
- * 无需存储权限）。解析失败在原地展示（AC-11），成功则导航到预览页确认（AC-10）。
+ * 通道：教务直连（内置 WebView 登录并自动识别课表）/ 从文件导入（本 App 导出的 .json）/
+ * 扫二维码导入 / 手动添加。文件选择用 ActivityResultContracts.OpenDocument（SAF，无需存储权限）。
+ * 解析失败在原地展示（AC-11），成功则导航到预览页确认（AC-10）。
+ *
+ * M9：**WakeUp CSV 通道已删除**（产品负责人要求）——文件类导入只剩本 App 导出的 JSON
+ * 与二维码截图两条（后者在导航层解出文本后走同一入口）。
  *
  * 界面铁律（Spec §10）：Scaffold + 自绘顶栏 statusBarsPadding；文案全部文件级常量；
  * 回调用方法引用；图标只经 AppIcons；本页无文本输入故无需 imePadding。
@@ -13,8 +16,6 @@ package com.gould.xputimetable.ui.import_
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,7 +43,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,18 +55,14 @@ import com.gould.xputimetable.ui.import_.components.ImportChannelCard
 import com.gould.xputimetable.ui.import_.components.ParseFailureCard
 import com.gould.xputimetable.ui.theme.IconSize
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // ---------- 文件级文案常量（Spec §10 铁律 2：禁止组合期新建选项集合）----------
 
-private const val MIME_ANY = "*/*"
 private const val HUB_TITLE = "导入课表"
 private const val HUB_SUBTITLE = "从以下通道导入你的课表；文件导入不联网也能用"
 private const val CHANNEL_WEB_TITLE = "教务直连"
 private const val CHANNEL_WEB_SUBTITLE = "在学校教务系统页完成登录，自动识别课表"
-private const val CHANNEL_CSV_TITLE = "WakeUp 文件导入"
-private const val CHANNEL_CSV_SUBTITLE = "选择 WakeUp 导出的 CSV 文件"
 private const val CHANNEL_JSON_TITLE = "从文件导入课表"
 private const val CHANNEL_JSON_SUBTITLE = "选择本 App 导出的 .json 文件"
 private const val CHANNEL_QR_TITLE = "扫二维码导入"
@@ -93,8 +89,6 @@ fun ImportHubScreen(
     onNoticeShown: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 导航层送来的提示（如「已清理 N 门」）：展示一次即回报消费
@@ -104,19 +98,6 @@ fun ImportHubScreen(
             onNoticeShown()
         }
     }
-
-    // 选择文件 → 后台读文本 → 装进 ImportPayload 交给 ViewModel（读文件属 UI 层
-    // Android 通道装配，非仓库调用；解析与入库全部在 ViewModel/Importer）
-    val pickFileLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent(),
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val payload = readImportPayload(context, uri)
-            if (payload == null) viewModel.markReadFailure(null) else viewModel.submitPayload(payload)
-        }
-    }
-    val onPickFile: () -> Unit = remember(pickFileLauncher) { { pickFileLauncher.launch(MIME_ANY) } }
 
     // 手动添加：回调 hoist 成稳定引用（Spec §10 铁律 2，避免内联 lambda 破坏跳过）
     val termId = state.term?.id
@@ -157,13 +138,6 @@ fun ImportHubScreen(
                 iconRes = AppIcons.globe,
                 enabled = true,
                 onClick = onOpenWeb,
-            )
-            ImportChannelCard(
-                title = CHANNEL_CSV_TITLE,
-                subtitle = CHANNEL_CSV_SUBTITLE,
-                iconRes = AppIcons.fileText,
-                enabled = true,
-                onClick = onPickFile,
             )
             // M6 需求 6-A：本 App 导出的 JSON 文件通道（与 CSV 各自独立 importer，避免串味）
             ImportChannelCard(
@@ -211,7 +185,7 @@ fun ImportHubScreen(
                     fileName = failure.fileName,
                     canRetry = failure.canRetry,
                     onRetry = viewModel::retry,
-                    onPickAnother = onPickFile,
+                    onPickAnother = onPickJsonFile,
                     onManualAdd = onManualAddClick,
                 )
             }

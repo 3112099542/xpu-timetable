@@ -40,6 +40,14 @@ object AppIcons {
     @DrawableRes
     val trash: Int = R.drawable.lucide_ic_trash_2
 
+    /** 数值步进的减号（M9「我的」页总周数步进器） */
+    @DrawableRes
+    val minus: Int = R.drawable.lucide_ic_minus
+
+    /** 二级页条目的右箭头（M9「我的」页改为分组列表 + 二级页结构） */
+    @DrawableRes
+    val chevronRight: Int = R.drawable.lucide_ic_chevron_right
+
     // ---------- 周视图 ----------
 
     /** 返回（各二级页顶栏返回箭头；周视图上下周按钮已随 M4-UI 删除） */

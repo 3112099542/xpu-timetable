@@ -91,22 +91,23 @@ fun WeekSelector(
             )
         }
 
-        // 右上动作区（M5 需求 4）：[导入][添加课程][返回本周]，返回本周仍在最右；
+        // 右上动作区（M5 需求 4 / M9 调序）：[添加课程][导入][返回本周]，返回本周仍在最右；
         // 导入/添加 tint = onSurface，返回本周保持原逻辑（可用 primary / 禁用 alpha 0.38）
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onOpenImport) {
+            // M9：添加课程与导入的位置互换（产品负责人要求：添加在前、导入在后）
+            IconButton(onClick = onAddCourse) {
                 Icon(
-                    painter = painterResource(AppIcons.upload),
-                    contentDescription = "导入课表",
+                    painter = painterResource(AppIcons.plus),
+                    contentDescription = "添加课程",
                     modifier = Modifier.size(IconSize.Medium),
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onAddCourse) {
+            IconButton(onClick = onOpenImport) {
                 Icon(
-                    painter = painterResource(AppIcons.plus),
-                    contentDescription = "添加课程",
+                    painter = painterResource(AppIcons.upload),
+                    contentDescription = "导入课表",
                     modifier = Modifier.size(IconSize.Medium),
                     tint = MaterialTheme.colorScheme.onSurface,
                 )

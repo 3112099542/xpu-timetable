@@ -27,9 +27,7 @@ import com.gould.xputimetable.data.repository.RoomTransactionRunner
 import com.gould.xputimetable.data.repository.TimetableRepositoryImpl
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import com.gould.xputimetable.importer.file.JsonFileImporter
-import com.gould.xputimetable.importer.wakeup.WakeupCsvImporter
 import com.gould.xputimetable.importer.xpu.XpuWebImporter
-import com.gould.xputimetable.parser.wakeup.WakeupCsvParser
 import com.gould.xputimetable.widget.DailyRefreshScheduler
 import com.gould.xputimetable.widget.WidgetRefresher
 import kotlinx.coroutines.CoroutineScope
@@ -75,14 +73,6 @@ class AppContainer(context: Context) {
             timeSlotDao = timeSlotDao,
             importLogDao = importLogDao,
             tx = RoomTransactionRunner(database),
-        )
-    }
-
-    /** WakeUp CSV 导入通道（M2-A）：解析器无状态可共享，importer 复用同一仓库实例。 */
-    val wakeupCsvImporter: WakeupCsvImporter by lazy {
-        WakeupCsvImporter(
-            parser = WakeupCsvParser(),
-            repository = repository,
         )
     }
 

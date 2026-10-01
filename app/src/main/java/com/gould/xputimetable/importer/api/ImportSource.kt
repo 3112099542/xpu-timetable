@@ -9,13 +9,14 @@
 package com.gould.xputimetable.importer.api
 
 enum class ImportSource {
-    /** 教务系统（WebView 直连）导入（M2-B，暂未开放）。 */
+    /** 教务系统（WebView 直连）导入（M2-B 起开放）。 */
     WEB,
 
-    /** WakeUp 导出的 CSV 文件导入（M2-A，本通道）。 */
-    WAKEUP_CSV,
-
-    /** 本 App 导出的课表文件 / 二维码导入（M6）。 */
+    /**
+     * 本 App 导出的课表文件 / 二维码导入（M6）。
+     * M9：原 WAKEUP_CSV 通道已随其 importer/parser 一并删除（产品负责人要求）；
+     * 注意 `CourseSource.WAKEUP_CSV` 字符串常量仍保留在存储层，用于兼容历史数据。
+     */
     FILE_JSON,
 
     /** 手动添加（不走 importer，列出仅为对齐架构枚举）。 */
