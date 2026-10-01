@@ -57,24 +57,28 @@ if not sizes:
     raise SystemExit('  ✗ APK 里没有 profile —— 先跑 :app:generateBaselineProfile')
 PY
 
-echo "== 2. 记录并关闭动画（Macrobenchmark 硬要求） =="
-KEYS="window_animation_scale transition_animation_scale animator_duration_scale"
-declare -A ORIG
+echo "== 2. 只读核对动画缩放（本脚本【不修改任何设备设置】） =="
+# ⚠️ 项目纪律（2026-10-01 事故后确立）：**禁止修改用户手机的 settings**。
+#    起因：为跑基准我 `settings put system screen_off_timeout` 后收尾用了 `settings delete`，
+#    把用户自定义的熄屏时间抹成系统默认且无法还原（原值未记录）。
+#    因此本脚本对设备**只读**：若前置条件不满足就中止，交由用户决定要不要自己改。
+#    Macrobenchmark 要求三个动画缩放为 0，实测该库自身不会去改（7 个 jar 检索无动画设置键）。
+NEED_ZERO=0
 for k in $KEYS; do
-  ORIG[$k]=$("$ADB" -s "$SERIAL" shell settings get global "$k" | tr -d '\r')
-  "$ADB" -s "$SERIAL" shell settings put global "$k" 0
-  echo "  $k: ${ORIG[$k]} -> 0"
+  v=$("$ADB" -s "$SERIAL" shell settings get global "$k" | tr -d '\r')
+  printf '  %-26s = %s\n' "$k" "$v"
+  [ "$v" = "0" ] || NEED_ZERO=1
 done
-TIMEOUT_ORIG=$("$ADB" -s "$SERIAL" shell settings get system screen_off_timeout | tr -d '\r')
-"$ADB" -s "$SERIAL" shell settings put system screen_off_timeout 1800000
-
-restore() {
-  echo "== 复原设备设置 =="
-  for k in $KEYS; do "$ADB" -s "$SERIAL" shell settings put global "$k" "${ORIG[$k]}" || true; done
-  "$ADB" -s "$SERIAL" shell settings put system screen_off_timeout "$TIMEOUT_ORIG" || true
-  echo "  已还原动画缩放与息屏时间"
-}
-trap restore EXIT
+if [ "$NEED_ZERO" != "0" ]; then
+  cat <<'MSG'
+  ⚠ 前置条件不满足：Macrobenchmark 要求三个动画缩放均为 0。
+  本脚本**不会替你改设备设置**（项目纪律：不改用户手机的任何 settings）。
+  如果你愿意自己开：开发者选项 → 「窗口动画缩放 / 过渡动画缩放 / Animator 时长缩放」全部设为「关闭」，
+  跑完测量后再自己改回原值。改完重跑本脚本即可。
+MSG
+  exit 4
+fi
+echo "  ✓ 动画缩放已为 0（未做任何写入）"
 
 echo "== 3. 安装两份 APK（-r 覆盖安装，**不卸载**，保住应用数据） =="
 "$ADB" -s "$SERIAL" install -r "$APP_APK"  | tail -1
