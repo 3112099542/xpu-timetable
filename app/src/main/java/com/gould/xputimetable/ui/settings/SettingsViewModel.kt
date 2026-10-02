@@ -72,9 +72,14 @@ class SettingsViewModel(
     /** 连点步进器时只写最后一次（去抖）。 */
     private var autoSaveJob: Job? = null
 
-    /** 「显示老师姓名」当前值（课程卡据此显示/隐藏教师行）。 */
+    /**
+     * 「显示老师姓名」当前值（课程卡据此显示/隐藏教师行）。
+     *
+     * 与 TimetableViewModel 一样用 [SharingStarted.Eagerly]：开关必须当场响应，
+     * 不能等到有人订阅时才补发（见那边对 WhileSubscribed 竞态的说明）。
+     */
     val showTeacher: StateFlow<Boolean> = showTeacherFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /**
      * 切换「显示老师姓名」（M11）。

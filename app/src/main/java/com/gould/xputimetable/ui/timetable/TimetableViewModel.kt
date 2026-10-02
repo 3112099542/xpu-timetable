@@ -141,9 +141,17 @@ class TimetableViewModel(
      *
      * 刻意**不放进 uiState**：它不参与周视图那个 combine（学期/作息/周次/错误），
      * 混进去会把一个和课程数据无关的开关拖进每次重算，属于无谓耦合。
+     *
+     * 启动策略必须是 [SharingStarted.Eagerly]，不是 WhileSubscribed：
+     * 用户在「我的」页拨开关 → 课表页在 AnimatedContent 里被换出（composition 释放、
+     * collectAsState 退订）→ 再切回时页面重新组合。WhileSubscribed 会在这段"没人订阅"
+     * 的窗口里停掉 DataStore 上游，重新组合时读到的是旧快照，表现为
+     * **"拨了开关切回课表、教师行却还在，要再切一次或重启才生效"**（真机实测复现）。
+     * Eagerly 让 VM 一创建就持有最新值，切页重组合直接读到当次结果。
+     * 代价几乎为零：上游只是一个常驻内存的小 protobuf，读一次即可。
      */
     val showTeacher: StateFlow<Boolean> = showTeacherFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     /** 切换周次（正/负步）。越界自动钳制，不会切出 0 周或负周。 */
     fun moveWeek(delta: Int) {

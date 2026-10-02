@@ -179,6 +179,9 @@ fun WeekGrid(
                                 isToday = showsCurrentWeek && day == todayDow,
                                 timeSlots = timeSlots,
                                 nowMinute = nowMinute,
+                                // M11：开关必须一路透传进来。漏传时 ConflictGroup 会退回默认值
+                                // true，表现为"关掉显示老师、切回课表教师行还在"（真机实测复现）
+                                showTeacher = showTeacher,
                                 onCourseClick = onCourseClick,
                             )
                         }
