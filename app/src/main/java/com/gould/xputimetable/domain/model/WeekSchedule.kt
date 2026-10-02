@@ -20,11 +20,14 @@ package com.gould.xputimetable.domain.model
  * @param session     原始上课安排
  * @param courseName  所属课程名（来自 courses 表）
  * @param colorTag    课程调色板索引（来自 courses 表，保证同色）
+ * @param teacher     任课教师（来自 courses 表，可空）。是否真的画出来由 UI 的
+ *                    「显示老师姓名」偏好决定 —— 数据照常取，展示开关在界面层。
  */
 data class SessionWithCourse(
     val session: CourseSession,
     val courseName: String,
     val colorTag: Int,
+    val teacher: String? = null,
 )
 
 /**

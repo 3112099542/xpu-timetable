@@ -22,6 +22,7 @@ import android.content.Context
 import androidx.room3.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.gould.xputimetable.data.db.AppDatabase
+import com.gould.xputimetable.data.prefs.UiPrefs
 import com.gould.xputimetable.data.db.MIGRATION_1_2
 import com.gould.xputimetable.data.repository.RoomTransactionRunner
 import com.gould.xputimetable.data.repository.TimetableRepositoryImpl
@@ -75,6 +76,9 @@ class AppContainer(context: Context) {
             tx = RoomTransactionRunner(database),
         )
     }
+
+    /** 界面偏好（M11：「显示老师姓名」等与课程数据无关的展示开关）。 */
+    val uiPrefs: UiPrefs by lazy { UiPrefs.create(appContext) }
 
     /** 教务直连通道（M2-B）：semesterId 由拦截到的 URL 决定，importer 本身无状态。 */
     val xpuWebImporter: XpuWebImporter by lazy {

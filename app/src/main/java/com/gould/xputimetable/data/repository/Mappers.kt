@@ -158,6 +158,7 @@ fun SessionWithCoursePojo.toDomain(): SessionWithCourse = SessionWithCourse(
     session = session.toDomain(),
     courseName = courseName,
     colorTag = colorTag,
+    teacher = teacher,
 )
 
 // ---------- ParsedSchedule（占位导入结构）→ 实体列表 ----------

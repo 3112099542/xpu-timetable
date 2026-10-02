@@ -53,6 +53,11 @@ private val NowBorderWidth = 1.5.dp
 fun CourseCard(
     item: SessionWithCourse,
     isNow: Boolean,
+    /**
+     * M11：是否显示「教师名」行（设置页开关控制）。
+     * 默认 true 保证不传时的行为与改造前一致（老用户视角无变化）。
+     */
+    showTeacher: Boolean = true,
     modifier: Modifier = Modifier,
     onCourseClick: (SessionWithCourse) -> Unit,
 ) {
@@ -98,6 +103,17 @@ fun CourseCard(
                     text = classroom,
                     style = MaterialTheme.typography.bodySmall,
                     color = content.copy(alpha = 0.85f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // M11 ②「显示老师姓名」：教师排在教室之后、同号小字、再淡一档区分主次
+            val teacher = item.teacher?.takeIf { it.isNotBlank() }
+            if (showTeacher && teacher != null) {
+                Text(
+                    text = teacher,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = content.copy(alpha = 0.72f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

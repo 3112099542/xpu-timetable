@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gould.xputimetable.data.prefs.UiPrefs
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import com.gould.xputimetable.importer.api.ImportResult
 import com.gould.xputimetable.importer.api.ScheduleImporter
@@ -83,12 +84,15 @@ private fun settingsViewModel(
     repository: TimetableRepository,
     canScheduleExact: () -> Boolean,
     onDataChanged: suspend () -> Unit,
+    uiPrefs: UiPrefs,
 ): SettingsViewModel = viewModel(
     factory = simpleFactory {
         SettingsViewModel(
             repository = repository,
             canScheduleExact = canScheduleExact,
             onTermChanged = onDataChanged,
+            showTeacherFlow = uiPrefs.showTeacher,
+            saveShowTeacher = uiPrefs::setShowTeacher,
         )
     },
 )
@@ -99,13 +103,15 @@ internal fun ProfileDestination(
     repository: TimetableRepository,
     canScheduleExact: () -> Boolean,
     onDataChanged: suspend () -> Unit,
+    /** M11：界面偏好（「显示老师姓名」）。 */
+    uiPrefs: UiPrefs,
     onShowHint: (String) -> Unit,
     onOpenTermSetup: () -> Unit,
     onOpenSubPage: (ProfileSubPage) -> Unit,
     onShareQr: () -> Unit,
 ) {
     SettingsScreen(
-        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged, uiPrefs),
         repository = repository,
         onOpenTermSetup = onOpenTermSetup,
         onOpenSubPage = onOpenSubPage,
@@ -121,11 +127,12 @@ internal fun ProfileSubDestination(
     repository: TimetableRepository,
     canScheduleExact: () -> Boolean,
     onDataChanged: suspend () -> Unit,
+    uiPrefs: UiPrefs,
     onBack: () -> Unit,
 ) {
     ProfileSubScreen(
         page = page,
-        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged, uiPrefs),
         onBack = onBack,
     )
 }
@@ -137,12 +144,13 @@ internal fun TermSetupDestination(
     repository: TimetableRepository,
     canScheduleExact: () -> Boolean,
     onDataChanged: suspend () -> Unit,
+    uiPrefs: UiPrefs,
     onShowHint: (String) -> Unit,
     onBack: () -> Unit,
     onDone: () -> Unit,
 ) {
     TermSetupScreen(
-        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged),
+        viewModel = settingsViewModel(repository, canScheduleExact, onDataChanged, uiPrefs),
         fromEmptyState = fromEmptyState,
         onBack = onBack,
         onCreated = onDone,

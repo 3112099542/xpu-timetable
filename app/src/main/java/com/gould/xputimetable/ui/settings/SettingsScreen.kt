@@ -17,6 +17,7 @@
 package com.gould.xputimetable.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -44,6 +45,10 @@ private const val GROUP_PERMISSIONS = "权限"
 private const val ROW_PERMISSION = "精确闹钟授权"
 private const val PERMISSION_OK = "已授权"
 private const val PERMISSION_MISSING = "未授权：桌面小组件刷新可能不精准"
+// M11：展示类开关（第 4 组，排在「权限」之后、「数据」之前）
+private const val GROUP_DISPLAY = "显示"
+private const val ROW_SHOW_TEACHER = "显示老师姓名"
+private const val SHOW_TEACHER_SUBTITLE = "在课程卡上显示任课教师"
 private const val GROUP_DATA = "数据"
 private const val GROUP_ABOUT = "关于"
 private const val ROW_ABOUT = "关于与隐私"
@@ -68,6 +73,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsState()
+    // M11：「显示老师姓名」开关（课程卡据此增减教师行）
+    val showTeacher by viewModel.showTeacher.collectAsState()
 
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
         Column(
@@ -84,36 +91,56 @@ fun SettingsScreen(
                 modifier = Modifier.padding(vertical = 8.dp),
             )
 
+            // M11：每组一个卡片容器（组标题在卡片外，组内横线不满宽）
             SettingsGroupHeader(GROUP_TERM)
-            SettingsNavRow(
-                title = ROW_TERM,
-                subtitle = termSummary(state),
-                onClick = onOpenTermSetup,
-                showDivider = false,
-            )
+            SettingsGroupCard {
+                SettingsNavRow(
+                    title = ROW_TERM,
+                    subtitle = termSummary(state),
+                    onClick = onOpenTermSetup,
+                    showDivider = false,
+                )
+            }
 
             SettingsGroupHeader(GROUP_PERMISSIONS)
-            SettingsNavRow(
-                title = ROW_PERMISSION,
-                subtitle = if (state.exactAlarmAllowed) PERMISSION_OK else PERMISSION_MISSING,
-                onClick = { onOpenSubPage(ProfileSubPage.PERMISSIONS) },
-                showDivider = false,
-            )
+            SettingsGroupCard {
+                SettingsNavRow(
+                    title = ROW_PERMISSION,
+                    subtitle = if (state.exactAlarmAllowed) PERMISSION_OK else PERMISSION_MISSING,
+                    onClick = { onOpenSubPage(ProfileSubPage.PERMISSIONS) },
+                    showDivider = false,
+                )
+            }
+
+            SettingsGroupHeader(GROUP_DISPLAY)
+            SettingsGroupCard {
+                SettingsSwitchRow(
+                    title = ROW_SHOW_TEACHER,
+                    subtitle = SHOW_TEACHER_SUBTITLE,
+                    checked = showTeacher,
+                    onCheckedChange = viewModel::toggleShowTeacher,
+                    showDivider = false,
+                )
+            }
 
             SettingsGroupHeader(GROUP_DATA)
-            ExportSection(
-                repository = repository,
-                onShowHint = onShowHint,
-                onShareQr = onShareQr,
-            )
+            SettingsGroupCard {
+                ExportSection(
+                    repository = repository,
+                    onShowHint = onShowHint,
+                    onShareQr = onShareQr,
+                )
+            }
 
             SettingsGroupHeader(GROUP_ABOUT)
-            SettingsNavRow(
-                title = ROW_ABOUT,
-                subtitle = ABOUT_SUBTITLE,
-                onClick = { onOpenSubPage(ProfileSubPage.ABOUT) },
-                showDivider = false,
-            )
+            SettingsGroupCard {
+                SettingsNavRow(
+                    title = ROW_ABOUT,
+                    subtitle = ABOUT_SUBTITLE,
+                    onClick = { onOpenSubPage(ProfileSubPage.ABOUT) },
+                    showDivider = false,
+                )
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

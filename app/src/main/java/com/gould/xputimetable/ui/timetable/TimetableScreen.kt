@@ -61,6 +61,8 @@ fun TimetableScreen(
     val state by viewModel.uiState.collectAsState()
     // M6 需求 4：分钟级推进的"当前时刻"，静置不动也能准时画出/消除"正在上"边框
     val (today, nowMinute) = rememberMinuteTick()
+    // M11：「显示老师姓名」（设置页开关）→ 课表页 → WeekGrid → 课程卡
+    val showTeacher by viewModel.showTeacher.collectAsState()
 
     // 一次性错误提示（如创建学期失败）：展示后清除，避免旋转屏幕重复弹出
     LaunchedEffect(state.lastError) {
@@ -108,6 +110,7 @@ fun TimetableScreen(
                         viewModel = viewModel,
                         today = today,
                         nowMinute = nowMinute,
+                        showTeacher = showTeacher,
                         onAddCourse = onAddCourse,
                         onOpenImport = onOpenImport,
                         onEditCourse = onEditCourse,

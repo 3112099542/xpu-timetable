@@ -30,6 +30,7 @@ import com.gould.xputimetable.domain.model.Term
 import com.gould.xputimetable.domain.model.TimeSlot
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +71,11 @@ data class TimetableUiState(
 
 class TimetableViewModel(
     private val repository: TimetableRepository,
+    /**
+     * M11：「显示老师姓名」开关的数据源（设置页与课程卡共用同一个 UiPrefs）。
+     * 默认 flowOf(true)——不传时行为等同于"总是显示"，测试与单 VM 场景无需关心。
+     */
+    showTeacherFlow: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
 
     private val weekOverride = MutableStateFlow<Int?>(null)
@@ -129,6 +135,15 @@ class TimetableViewModel(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TimetableUiState())
+
+    /**
+     * 「显示老师姓名」当前值（设置页 ↔ 课表页共享同一个 DataStore 源）。
+     *
+     * 刻意**不放进 uiState**：它不参与周视图那个 combine（学期/作息/周次/错误），
+     * 混进去会把一个和课程数据无关的开关拖进每次重算，属于无谓耦合。
+     */
+    val showTeacher: StateFlow<Boolean> = showTeacherFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     /** 切换周次（正/负步）。越界自动钳制，不会切出 0 周或负周。 */
     fun moveWeek(delta: Int) {

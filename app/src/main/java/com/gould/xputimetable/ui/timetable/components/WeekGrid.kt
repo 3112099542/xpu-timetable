@@ -70,6 +70,8 @@ fun WeekGrid(
     startDate: String?,
     today: LocalDate,
     nowMinute: Int,
+    /** M11：「显示老师姓名」开关（透传到课程卡，见 CourseCard.showTeacher）。 */
+    showTeacher: Boolean = true,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
     onCourseClick: (SessionWithCourse) -> Unit,
@@ -202,6 +204,8 @@ private fun ConflictGroup(
     isToday: Boolean,
     timeSlots: List<TimeSlot>,
     nowMinute: Int,
+    /** M11：「显示老师姓名」开关（由 WeekGrid 透传进来）。 */
+    showTeacher: Boolean = true,
     onCourseClick: (SessionWithCourse) -> Unit,
 ) {
     // M7 性能：组的几何与布局只依赖 (group, cellWidth)，按输入缓存。
@@ -223,6 +227,7 @@ private fun ConflictGroup(
             CourseCard(
                 item = item,
                 isNow = isToday && isRunning(item, timeSlots, nowMinute),
+                showTeacher = showTeacher,
                 modifier = Modifier
                     .offset(x = (slot.dx + CARD_GAP / 2f).dp, y = (slot.dy + CARD_GAP / 2f).dp)
                     .size(

@@ -49,6 +49,8 @@ internal fun WeekPager(
     viewModel: TimetableViewModel,
     today: LocalDate,
     nowMinute: Int,
+    /** M11：「显示老师姓名」开关（透传到 WeekGrid → CourseCard）。 */
+    showTeacher: Boolean = true,
     onAddCourse: () -> Unit,
     onOpenImport: () -> Unit,
     onEditCourse: (courseId: String, sessionId: Long) -> Unit,
@@ -117,6 +119,7 @@ internal fun WeekPager(
                     startDate = state.term?.startDate,
                     today = today,
                     nowMinute = nowMinute,
+                    showTeacher = showTeacher,
                     scrollState = scrollState,
                     modifier = Modifier.fillMaxSize(),
                     onCourseClick = onCourseClick,

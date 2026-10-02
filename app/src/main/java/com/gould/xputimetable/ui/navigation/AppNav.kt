@@ -18,11 +18,6 @@ package com.gould.xputimetable.ui.navigation
 
 import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,23 +35,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.gould.xputimetable.domain.model.CourseSource
+import com.gould.xputimetable.data.prefs.UiPrefs
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import com.gould.xputimetable.importer.api.ScheduleImporter
 import com.gould.xputimetable.ui.components.BottomHint
-import com.gould.xputimetable.ui.courseedit.CourseEditScreen
-import com.gould.xputimetable.ui.courseedit.CourseEditViewModel
-import com.gould.xputimetable.ui.import_.CleanupScreen
-import com.gould.xputimetable.ui.import_.CleanupViewModel
-import com.gould.xputimetable.ui.import_.ImportPreviewScreen
-import com.gould.xputimetable.ui.import_.ImportPreviewViewModel
 import com.gould.xputimetable.ui.theme.Hint
-import com.gould.xputimetable.ui.theme.Motion
 import com.gould.xputimetable.ui.timetable.TimetableScreen
 import com.gould.xputimetable.ui.timetable.TimetableViewModel
 import com.gould.xputimetable.ui.transfer.QrShareScreen
-import com.gould.xputimetable.ui.web.CourseCaptureScreen
-import com.gould.xputimetable.ui.web.CourseCaptureViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 
@@ -69,6 +55,8 @@ internal fun AppNav(
     jsonFileImporter: ScheduleImporter,
     xpuImporter: ScheduleImporter,
     canScheduleExact: () -> Boolean,
+    /** M11：界面偏好（「显示老师姓名」）。课表页与设置页共用同一个实例。 */
+    uiPrefs: UiPrefs,
     /** M3：数据变更（编辑/导入/清理/学期）→ 重排提醒 + 立即刷新小组件（AC-18）。 */
     onDataChanged: suspend () -> Unit,
 ) {
@@ -137,27 +125,17 @@ internal fun AppNav(
             val animated = remember(resolver) {
                 Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) != 0f
             }
-            val enterDur = if (animated) Motion.BaseMillis else 0
-            val exitDur = if (animated) Motion.FastMillis else 0
             AnimatedContent(
                 targetState = screen,
-                transitionSpec = {
-                    // 位移方向取当前的导航方向：前进 +height/8（自下而上），返回 -height/8（自上而下）。
-                    // 用同一套时长与缓动（450ms 入场 / 200ms 出场），避免"有的快有的慢"的观感。
-                    val enterOffset: (Int) -> Int = if (navForward) {
-                        { fullHeight -> fullHeight / 8 }
-                    } else {
-                        { fullHeight -> -fullHeight / 8 }
-                    }
-                    (fadeIn(tween(enterDur, easing = Motion.EaseOutStandard)) +
-                        slideInVertically(tween(enterDur, easing = Motion.EaseOutStandard), enterOffset))
-                        .togetherWith(fadeOut(tween(exitDur, easing = Motion.EaseOutStandard)))
-                },
+                // M11：转场规格（方向 + 时长）拆到 ScreenTransition.kt，这里只剩一行
+                transitionSpec = { screenTransition(navForward, animated) },
                 label = "screenTransition",
             ) { current: AppScreen ->
                 when (current) {
                     AppScreen.Timetable -> {
-                        val vm: TimetableViewModel = viewModel(factory = simpleFactory { TimetableViewModel(repository) })
+                        val vm: TimetableViewModel = viewModel(
+                            factory = simpleFactory { TimetableViewModel(repository, uiPrefs.showTeacher) },
+                        )
                         val state = vm.uiState.value
                         TimetableScreen(
                             viewModel = vm,
@@ -172,104 +150,23 @@ internal fun AppNav(
                         )
                     }
 
-                    is AppScreen.CourseEdit -> {
-                        // 数据变更触发点（M2-D 时机② + M3 AC-18）：保存/删除成功后重排闹钟并刷新小组件
-                        //
-                        // M10：**必须按 target 传 key**。viewModel() 不传 key 时按"类名"取实例，
-                        // 同一 Activity 的 ViewModelStore 下所有 CourseEdit 共用一个 VM →
-                        // "点课程 A 进编辑 → 返回 → 点添加课程"会复用还装着 A 的 VM
-                        // （配合 prepareNew 的旧守卫就表现为"添加课程页显示上一门课的数据"）。
-                        val targetKey = when (val t: EditTarget = current.target) {
-                            is EditTarget.New -> "course-edit-new"
-                            is EditTarget.Edit -> "course-edit-${t.courseId}-${t.sessionId}"
-                        }
-                        val vm: CourseEditViewModel = viewModel(
-                            key = targetKey,
-                            factory = simpleFactory { CourseEditViewModel(repository, onDataChanged) },
-                        )
-                        LaunchedEffect(current) {
-                            when (val t: EditTarget = current.target) {
-                                is EditTarget.New -> vm.prepareNew(t.termId, t.week, t.totalWeeks)
-                                is EditTarget.Edit -> vm.load(t.courseId, t.sessionId)
-                            }
-                        }
-                        CourseEditScreen(
-                            viewModel = vm,
-                            title = if (current.target is EditTarget.New) "添加课程" else "编辑课程",
-                            onBack = ::goBack,
-                        )
-                    }
-
-                    AppScreen.ImportHub -> ImportHubDestination(
-                        repository = repository,
-                        jsonFileImporter = jsonFileImporter,
-                        notice = hubNotice,
-                        onNoticeShown = { hubNotice = null },
-                        onBack = ::goBack,
-                        onOpenWeb = { navigateTo(AppScreen.CourseCapture) },
-                        onOpenCleanup = { navigateTo(AppScreen.Cleanup) },
-                        onManualAdd = { termId, totalWeeks ->
-                            navigateTo(AppScreen.CourseEdit(EditTarget.New(termId, 1, totalWeeks)))
-                        },
-                        onParsed = { needsConfirm -> navigateTo(AppScreen.ImportPreview(needsConfirm)) },
-                    )
-
-                    AppScreen.Cleanup -> {
-                        // 数据变更触发点（M2-D 时机② + M3 AC-18）：清理删除后重排闹钟并刷新小组件
-                        val vm: CleanupViewModel = viewModel(
-                            factory = simpleFactory { CleanupViewModel(repository, onDataChanged) },
-                        )
-                        CleanupScreen(
-                            viewModel = vm,
-                            onBack = ::goBack,
-                            onCleaned = { count ->
-                                hubNotice = "已清理 $count 门"
-                                goBack()
-                            },
-                        )
-                    }
-
-                    AppScreen.CourseCapture -> {
-                        val vm: CourseCaptureViewModel = viewModel(
-                            factory = simpleFactory { CourseCaptureViewModel(xpuImporter) },
-                        )
-                        CourseCaptureScreen(
-                            viewModel = vm,
-                            onBack = ::goBack,
-                            onParsed = { needsConfirm -> navigateTo(AppScreen.ImportPreview(needsConfirm)) },
-                        )
-                    }
-
-                    is AppScreen.ImportPreview -> {
-                        // 覆盖范围按本批数据的来源计算（WEB / FILE_JSON，预览页已泛化）；
-                        // commit 走与解析同通道的 importer（两者最终都汇入 applyImport 同一入口）。
-                        // M9：WakeUp CSV 通道删除后，非 WEB 的数据一律走本 App 的 JSON 通道
-                        val source = current.needsConfirm.parsed.courses.firstOrNull()?.source
-                            ?: CourseSource.FILE_JSON
-                        val importer = when (source) {
-                            CourseSource.WEB -> xpuImporter
-                            else -> jsonFileImporter
-                        }
-                        val vm: ImportPreviewViewModel = viewModel(
-                            factory = simpleFactory { ImportPreviewViewModel(importer, repository, onDataChanged) },
-                        )
-                        LaunchedEffect(current) { vm.load(current.needsConfirm, source) }
-                        ImportPreviewScreen(
-                            viewModel = vm,
+                    // M11：编辑/导入这一组的装配拆到 ImportFlowDestination.kt（与「我的」支线同理：
+                    // 只补依赖，不持有返回栈、不参与返回判定）
+                    is AppScreen.CourseEdit, is AppScreen.ImportHub, is AppScreen.Cleanup,
+                    is AppScreen.CourseCapture, is AppScreen.ImportPreview ->
+                        ImportFlowDestination(
+                            screen = current,
+                            repository = repository,
+                            jsonFileImporter = jsonFileImporter,
+                            xpuImporter = xpuImporter,
+                            onDataChanged = onDataChanged,
+                            hubNotice = hubNotice,
+                            onHubNoticeShown = { hubNotice = null },
+                            onNotice = { hubNotice = it },
+                            navigateTo = { next -> navigateTo(next) },
                             onBack = ::goBack,
                             onDone = ::popToRoot,
                         )
-                    }
-
-                    AppScreen.Profile -> ProfileDestination(
-                        repository = repository,
-                        canScheduleExact = canScheduleExact,
-                        onDataChanged = onDataChanged,
-                        onShowHint = showHint,
-                        onOpenTermSetup = { navigateTo(AppScreen.TermSetup(fromEmptyState = false)) },
-                        onOpenSubPage = { page -> navigateTo(AppScreen.ProfileSub(page)) },
-                        onShareQr = { navigateTo(AppScreen.QrShare) },
-                    )
 
                     AppScreen.QrShare -> {
                         QrShareScreen(
@@ -278,23 +175,19 @@ internal fun AppNav(
                         )
                     }
 
-                    is AppScreen.TermSetup -> TermSetupDestination(
-                        fromEmptyState = current.fromEmptyState,
-                        repository = repository,
-                        canScheduleExact = canScheduleExact,
-                        onDataChanged = onDataChanged,
-                        onShowHint = showHint,
-                        onBack = ::goBack,
-                        onDone = ::popToRoot,
-                    )
-
-                    is AppScreen.ProfileSub -> ProfileSubDestination(
-                        page = current.page,
-                        repository = repository,
-                        canScheduleExact = canScheduleExact,
-                        onDataChanged = onDataChanged,
-                        onBack = ::goBack,
-                    )
+                    // M11：这一组（我的 / 学期设置 / 二级页）的装配拆到 ProfileFlowDestination.kt
+                    is AppScreen.TermSetup, is AppScreen.ProfileSub, AppScreen.Profile ->
+                        ProfileFlowDestination(
+                            screen = current,
+                            repository = repository,
+                            canScheduleExact = canScheduleExact,
+                            onDataChanged = onDataChanged,
+                            uiPrefs = uiPrefs,
+                            showHint = showHint,
+                            navigateTo = { next -> navigateTo(next) },
+                            onBack = ::goBack,
+                            onDone = ::popToRoot,
+                        )
                 }
             }
 

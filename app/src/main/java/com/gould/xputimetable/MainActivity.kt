@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
                     jsonFileImporter = container.jsonFileImporter,
                     xpuImporter = container.xpuWebImporter,
                     canScheduleExact = container::canScheduleExactAlarms,
+                    uiPrefs = container.uiPrefs,
                     onDataChanged = container.onDataChanged,
                 )
             }

@@ -88,4 +88,10 @@ object ListRow {
     val DividerAlpha = 0.12f     // 发丝分隔线（与 WeekGrid 同口径）
     val GroupSpacing = 18.dp     // 分组之间的留白
     val IconGap = 8.dp           // 标题与副标题、文本与箭头的间距
+
+    // M11：分组卡片（参照系统设置页 / QQ 设置：同类项装进一个圆角容器，组内用横线分隔）
+    val CardCorner = 12.dp       // 卡片圆角
+    val CardPadding = 12.dp      // 卡片内边距（横向；竖向取小的 4dp，避免行显得飘）
+    val CardPaddingV = 4.dp
+    val DividerInset = 4.dp      // 组内横线的左右缩进（与行文本左缘对齐，横线不满宽）
 }

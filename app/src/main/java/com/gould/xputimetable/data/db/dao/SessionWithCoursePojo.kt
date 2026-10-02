@@ -22,4 +22,13 @@ data class SessionWithCoursePojo(
 
     @ColumnInfo(name = "color_tag")
     val colorTag: Int,
+
+    /**
+     * M11：授课教师（来自 courses.teacher）。
+     *
+     * 原先这里只有 course_name / color_tag 两个派生列 —— 课程卡上若想画「@教师名」，
+     * JOIN 就必须把它选出来，否则只能在 UI 层拿 courseId 再反查一次 courses。
+     */
+    @ColumnInfo(name = "teacher")
+    val teacher: String? = null,
 )

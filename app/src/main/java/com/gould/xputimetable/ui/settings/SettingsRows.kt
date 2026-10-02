@@ -14,9 +14,12 @@
 package com.gould.xputimetable.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -28,15 +31,45 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gould.xputimetable.ui.components.AppIcons
 import com.gould.xputimetable.ui.theme.ListRow
+
+/**
+ * 分组卡片（M11）：把同类设置项装进一个圆角容器，组内条目用横线分隔。
+ *
+ * 参照产品负责人给的两张设置页截图（系统设置 / QQ 设置）的版式：
+ * 组标题在卡片**外面**（灰小字），卡片本身 = 圆角 + 极淡底色 + 发丝边框。
+ * 之所以加容器而不是只留横线：相邻两组的边界此前只能靠间距区分，视觉上是平的一片。
+ */
+@Composable
+internal fun SettingsGroupCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(ListRow.CardCorner)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = ListRow.DividerAlpha),
+                shape = shape,
+            )
+            .padding(horizontal = ListRow.CardPadding, vertical = ListRow.CardPaddingV),
+        content = content,
+    )
+}
 
 /** 分组标题（小号灰字，靠上留出与上一组的间距）。 */
 @Composable
@@ -82,6 +115,50 @@ internal fun SettingsActionRow(
     }
 }
 
+/**
+ * 开关行（M11）：标题 + 副标题 + 右侧 Switch。
+ *
+ * 与 [SettingsNavRow] 共用同一套触摸目标与留白，只把行尾的箭头换成 Switch；
+ * 整行可点（不必精确命中 Switch 那 20dp 的小靶），点击后取反。
+ */
+@Composable
+internal fun SettingsSwitchRow(
+    title: String,
+    subtitle: String = "",
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    showDivider: Boolean = true,
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = ListRow.MinHeight)
+                .clickable(onClick = { onCheckedChange(!checked) })
+                .padding(horizontal = ListRow.HorizontalPadding, vertical = ListRow.VerticalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SettingsRowTexts(title = title, subtitle = subtitle, modifier = Modifier.weight(1f))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+            )
+        }
+        if (showDivider) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = ListRow.DividerInset)
+                    .height(1.dp)
+                    .background(
+                        MaterialTheme.colorScheme.outlineVariant
+                            .copy(alpha = ListRow.DividerAlpha),
+                    ),
+            )
+        }
+    }
+}
+
 /** 条目外壳：统一的触摸目标、留白与发丝分隔线；内容按横向排布（文本可 weight）。 */
 @Composable
 private fun SettingsRowShell(
@@ -103,6 +180,8 @@ private fun SettingsRowShell(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // M11：横线左右缩进、与行文本左缘对齐（不满宽），这是卡片内分隔线的通行做法
+                    .padding(horizontal = ListRow.DividerInset)
                     .height(1.dp)
                     .background(
                         MaterialTheme.colorScheme.outlineVariant

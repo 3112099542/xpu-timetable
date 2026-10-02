@@ -20,8 +20,12 @@ import com.gould.xputimetable.domain.model.Term
 import com.gould.xputimetable.domain.repository.TimetableRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -56,6 +60,10 @@ class SettingsViewModel(
     private val canScheduleExact: () -> Boolean = { true },
     /** 学期保存/校正属数据变更（M3 §4.5）：重排小组件闹钟 + 立即刷新小组件。默认空实现便于测试。 */
     private val onTermChanged: suspend () -> Unit = {},
+    /** M11：「显示老师姓名」初始值（UniPrefs 有值时由设置页写入的开关驱动）。默认开。 */
+    showTeacherFlow: Flow<Boolean> = flowOf(true),
+    /** M11：「显示老师姓名」写入通道。默认空实现便于测试（测试不落盘）。 */
+    private val saveShowTeacher: suspend (Boolean) -> Unit = {},
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -63,6 +71,23 @@ class SettingsViewModel(
 
     /** 连点步进器时只写最后一次（去抖）。 */
     private var autoSaveJob: Job? = null
+
+    /** 「显示老师姓名」当前值（课程卡据此显示/隐藏教师行）。 */
+    val showTeacher: StateFlow<Boolean> = showTeacherFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /**
+     * 切换「显示老师姓名」（M11）。
+     *
+     * 写入失败只提示不冒泡：这是界面偏好，不该把设置页整个搞崩；
+     * 上层 SettingsScreen 已接了全局底部提示，这里不重复弹。
+     */
+    fun toggleShowTeacher(enabled: Boolean) {
+        viewModelScope.launch {
+            runCatching { saveShowTeacher(enabled) }
+                .onFailure { _state.update { it.copy(error = "设置未保存：${it.error ?: "写入失败"}") } }
+        }
+    }
 
     init {
         load()

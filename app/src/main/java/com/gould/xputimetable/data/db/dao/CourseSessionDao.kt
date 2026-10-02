@@ -56,7 +56,7 @@ interface CourseSessionDao {
      */
     @Query(
         """
-        SELECT s.*, c.name AS course_name, c.color_tag AS color_tag
+        SELECT s.*, c.name AS course_name, c.color_tag AS color_tag, c.teacher AS teacher
         FROM course_sessions s
         INNER JOIN courses c ON c.id = s.course_id
         WHERE c.term_id = :termId
