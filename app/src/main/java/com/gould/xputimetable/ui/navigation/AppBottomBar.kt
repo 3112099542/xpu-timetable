@@ -14,9 +14,7 @@
  */
 package com.gould.xputimetable.ui.navigation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -36,8 +34,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gould.xputimetable.ui.theme.DarkSurface
-import com.gould.xputimetable.ui.theme.LightPageBackground
 
 private const val LABEL_TIMETABLE = "课表"
 private const val LABEL_PROFILE = "我的"
@@ -45,8 +41,8 @@ private const val LABEL_PROFILE = "我的"
 /** M5 需求 3 的底栏高度（保持 40dp，不因去图标而改动既定尺寸）。 */
 private val BarHeight = 40.dp
 
-/** M6-fix：无图标后文字是唯一元素，10sp 偏小 → 提到 M3 labelMedium 的标准值 12sp。 */
-private val LabelFontSize = 12.sp
+/** M6-fix：无图标后文字是唯一元素，10sp 偏小 → 12sp；M10 产品要求再加大一号 → 13sp。 */
+private val LabelFontSize = 13.sp
 
 @Composable
 internal fun AppBottomBar(
@@ -55,18 +51,15 @@ internal fun AppBottomBar(
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val barColor = if (isSystemInDarkTheme()) {
-        DarkSurface.copy(alpha = 0.5f)
-    } else {
-        LightPageBackground.copy(alpha = 0.5f)
-    }
+    // M10：**不再给底栏单独画背景**（原先是不透明底色的 50% 叠加，与页面底色并不完全一致）。
+    // 不画背景 → 底栏自然透出页面背景，两者严格同色；
+    // 也是"以后可自定义背景"的前置条件：换背景图/换底色时底栏不会再压出一条色带。
     Row(
         modifier = modifier
             .fillMaxWidth()
             // M6-fix ②：必须在 height **之前**（外层）—— 否则 insets 会被 40dp 压扁。
             .navigationBarsPadding()
-            .height(BarHeight)
-            .background(barColor),
+            .height(BarHeight),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -98,7 +91,9 @@ private fun BottomBarLabel(
 ) {
     // 选中态：唯一强调色 primary + 加粗；未选中：onSurfaceVariant + 常规
     // （与既有设计一致：全项目唯一强调色 = colorScheme.primary，只给关键状态）
-    val color = if (isSelected) MaterialTheme.colorScheme.primary
+    // M10：选中态文字改**黑色**（onSurface），不再用强调色 primary ——
+    // 产品要求"所有蓝色选中字样改成黑色"。选中与未选中靠字重区分（SemiBold vs Normal）。
+    val color = if (isSelected) MaterialTheme.colorScheme.onSurface
     else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = modifier

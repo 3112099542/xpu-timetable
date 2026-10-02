@@ -148,8 +148,7 @@ private fun PermissionsSubScreen(viewModel: SettingsViewModel, onBack: () -> Uni
         Text(
             text = if (state.exactAlarmAllowed) P_STATE_OK else P_STATE_MISSING,
             style = MaterialTheme.typography.titleMedium,
-            color = if (state.exactAlarmAllowed) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         if (!state.exactAlarmAllowed && Build.VERSION.SDK_INT >= 31) {
             Spacer(Modifier.height(12.dp))

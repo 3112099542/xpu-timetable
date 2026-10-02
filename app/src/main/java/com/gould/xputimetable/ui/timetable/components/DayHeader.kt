@@ -105,7 +105,8 @@ fun DayHeader(startDate: String?, week: Int, today: LocalDate, modifier: Modifie
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         fontWeight = if (isToday) FontWeight.SemiBold else null,
-                        color = if (isToday) MaterialTheme.colorScheme.primary
+                        // M10：今天的高亮文字改黑色（原为强调色 primary，按"蓝色字样改黑"的统一要求）
+                        color = if (isToday) MaterialTheme.colorScheme.onSurface
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (date != null) {

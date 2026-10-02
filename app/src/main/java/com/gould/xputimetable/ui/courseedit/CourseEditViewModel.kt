@@ -126,9 +126,18 @@ class CourseEditViewModel(
 
     // ---------- 生命周期 ----------
 
-    /** 准备新增（带当前学期与周次范围）。 */
+    /**
+     * 准备新增（带当前学期与周次范围）。
+     *
+     * ⚠️ 这里的守卫条件是本项目修过的一个真实缺陷的根因：
+     * 原写法 `if (_draft.value.courseId != null) return` 只判断"有没有 courseId"，
+     * 而上一轮编辑过的课程会留下 courseId → 从"编辑课程"返回后再点"添加课程"，
+     * 本方法**直接早退、什么都不重置**，于是表单里显示的是上一门课的数据。
+     * 现在只有"当前本来就是新增态且学期相同"才早退（保留用户已填内容），
+     * 其余情况一律重置。
+     */
     fun prepareNew(termId: Long?, defaultWeek: Int, totalWeeks: Int) {
-        if (_draft.value.courseId != null) return
+        if (_draft.value.courseId == null && _draft.value.termId == termId) return
         otherSessions = emptyList()
         originalCourse = null
         _draft.value = CourseDraft(

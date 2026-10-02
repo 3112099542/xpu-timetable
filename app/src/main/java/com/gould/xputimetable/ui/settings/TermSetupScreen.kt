@@ -166,7 +166,7 @@ internal fun TermSetupScreen(
                 Text(
                     text = HINT_AUTO_SAVED,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }

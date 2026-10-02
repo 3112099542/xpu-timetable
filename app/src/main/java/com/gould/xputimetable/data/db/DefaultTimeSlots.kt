@@ -22,9 +22,15 @@ import com.gould.xputimetable.domain.model.TimeSlot
 private fun minutes(hour: Int, minute: Int): Int = hour * 60 + minute
 
 /**
- * 西工程大标准作息（10 节，每节 50 分钟）。
- * 值取自教务处官网：08:00-08:50 / 09:00-09:50 / 10:10-11:00 / 11:10-12:00 /
+ * 西工程大标准作息（12 节，每节 50 分钟）。
+ *
+ * 1-10 节**取自教务处官网**：08:00-08:50 / 09:00-09:50 / 10:10-11:00 / 11:10-12:00 /
  * 14:00-14:50 / 15:00-15:50 / 16:00-16:50 / 17:00-17:50 / 19:00-19:50 / 20:00-20:50
+ *
+ * ⚠️ 11/12 节的作息**不是官网数据**：周视图网格兜底渲染 12 行（见 WeekGrid 的
+ * defaultSectionCount），而旧表只有 10 节 → 第 11、12 行显示不出时间（用户报告的缺陷）。
+ * 这里按 9/10 节的规律外推为 21:00-21:50 / 22:00-22:50；**如与学校实际作息不符，
+ * 改本文件两行即可**（该值只在建库时写入一次，老库靠 ensureDefaultTimeSlots 增量补齐）。
  */
 internal val defaultTimeSlots: List<TimeSlot> = listOf(
     TimeSlot(id = 0L, section = 1, startMinute = minutes(8, 0), endMinute = minutes(8, 50)),
@@ -37,4 +43,6 @@ internal val defaultTimeSlots: List<TimeSlot> = listOf(
     TimeSlot(id = 0L, section = 8, startMinute = minutes(17, 0), endMinute = minutes(17, 50)),
     TimeSlot(id = 0L, section = 9, startMinute = minutes(19, 0), endMinute = minutes(19, 50)),
     TimeSlot(id = 0L, section = 10, startMinute = minutes(20, 0), endMinute = minutes(20, 50)),
+    TimeSlot(id = 0L, section = 11, startMinute = minutes(21, 0), endMinute = minutes(21, 50)),
+    TimeSlot(id = 0L, section = 12, startMinute = minutes(22, 0), endMinute = minutes(22, 50)),
 )

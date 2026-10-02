@@ -23,10 +23,12 @@ import androidx.glance.GlanceTheme
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.action.actionStartActivity
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -42,6 +44,7 @@ import androidx.glance.LocalSize
 import com.gould.xputimetable.MainActivity
 import com.gould.xputimetable.R
 import com.gould.xputimetable.ui.theme.DarkOnSurface
+import com.gould.xputimetable.ui.theme.CoursePalette
 import com.gould.xputimetable.ui.theme.LightOnSurface
 import com.gould.xputimetable.ui.timetable.components.weekdayCn
 import java.time.LocalDate
@@ -170,6 +173,16 @@ private fun CourseRow(item: TodayItem, index: Int, compact: Boolean = false) {
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // M10：左侧课程色小竖条（颜色与课程一致）。**只恢复竖条，不恢复行的彩色底** ——
+        // 产品明确要"左边有个小竖条、颜色和课程一致"，而彩色整行底上一轮已按需求去掉。
+        Box(
+            modifier = GlanceModifier
+                .width(4.dp)
+                .height(if (compact) 18.dp else 28.dp)
+                .cornerRadius(2.dp)
+                .background(CoursePalette.base(item.colorTag)),
+        ) {}
+        Spacer(GlanceModifier.width(6.dp))
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = item.courseName,

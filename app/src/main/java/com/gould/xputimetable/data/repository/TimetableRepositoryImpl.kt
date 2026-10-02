@@ -121,10 +121,14 @@ class TimetableRepositoryImpl(
         courseSessionDao.observeByCourseId(courseId).first().map { it.toDomain() }
 
     override suspend fun ensureDefaultTimeSlots() {
-        // 幂等：只有表为空时才写入预置作息；用户改过之后不会被覆盖
-        if (timeSlotDao.observeAll().first().isEmpty()) {
-            timeSlotDao.insertAll(defaultTimeSlots.map { it.toEntity() })
-        }
+        // 幂等且可**增量补齐**：按节次对齐，只补缺失的节；已存在的节一律不动
+        // （用户改过的作息不会被覆盖）。
+        // 为什么不能只在"表为空"时写入：默认作息从 10 节扩到 12 节后，
+        // 老用户的库里已经有 10 条 → 表非空 → 永远补不上 11/12 节（即用户报告的
+        // "11、12 节不显示时间"）。改成按节次差集补，才对新老库都成立。
+        val existingSections = timeSlotDao.observeAll().first().map { it.section }.toSet()
+        val missing = defaultTimeSlots.filter { it.section !in existingSections }
+        if (missing.isNotEmpty()) timeSlotDao.insertAll(missing.map { it.toEntity() })
     }
 
     override suspend fun getCourseById(courseId: String): Course? =

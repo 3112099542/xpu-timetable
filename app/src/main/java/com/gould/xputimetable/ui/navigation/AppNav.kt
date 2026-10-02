@@ -74,9 +74,28 @@ internal fun AppNav(
 ) {
     // 最小返回栈：栈底是首页；进入新页 push，返回 pop，导入完成回栈底（顺带修掉"导入中心→手动添加"的返回去向 bug）
     val backStack = remember { mutableStateListOf<AppScreen>(AppScreen.Timetable) }
-    fun navigateTo(next: AppScreen) { backStack.add(next) }
-    fun goBack() { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }
-    fun popToRoot() { while (backStack.size > 1) backStack.removeAt(backStack.lastIndex) }
+
+    // M10：转场方向（产品要求"返回的动画统一为从上往下淡入"）。
+    // 前进 = 从下往上（新页从下方推入，有"进入下一层"的方向感）
+    // 返回 = 从上往下（新页从上方落下）—— 与前进相反，方向本身即是"返回"的提示。
+    var navForward by remember { mutableStateOf(true) }
+
+    fun navigateTo(next: AppScreen) {
+        navForward = true
+        backStack.add(next)
+    }
+    fun goBack() {
+        if (backStack.size > 1) {
+            navForward = false
+            backStack.removeAt(backStack.lastIndex)
+        }
+    }
+    fun popToRoot() {
+        if (backStack.size > 1) {
+            navForward = false
+            while (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+        }
+    }
     val screen: AppScreen = backStack.last()
 
     // 点击提醒通知 / singleTop 复用：MainActivity 发布"回到课表"事件 → 回到返回栈栈底（周视图）。
@@ -123,8 +142,15 @@ internal fun AppNav(
             AnimatedContent(
                 targetState = screen,
                 transitionSpec = {
+                    // 位移方向取当前的导航方向：前进 +height/8（自下而上），返回 -height/8（自上而下）。
+                    // 用同一套时长与缓动（450ms 入场 / 200ms 出场），避免"有的快有的慢"的观感。
+                    val enterOffset: (Int) -> Int = if (navForward) {
+                        { fullHeight -> fullHeight / 8 }
+                    } else {
+                        { fullHeight -> -fullHeight / 8 }
+                    }
                     (fadeIn(tween(enterDur, easing = Motion.EaseOutStandard)) +
-                        slideInVertically(tween(enterDur, easing = Motion.EaseOutStandard)) { it / 8 })
+                        slideInVertically(tween(enterDur, easing = Motion.EaseOutStandard), enterOffset))
                         .togetherWith(fadeOut(tween(exitDur, easing = Motion.EaseOutStandard)))
                 },
                 label = "screenTransition",
@@ -148,7 +174,17 @@ internal fun AppNav(
 
                     is AppScreen.CourseEdit -> {
                         // 数据变更触发点（M2-D 时机② + M3 AC-18）：保存/删除成功后重排闹钟并刷新小组件
+                        //
+                        // M10：**必须按 target 传 key**。viewModel() 不传 key 时按"类名"取实例，
+                        // 同一 Activity 的 ViewModelStore 下所有 CourseEdit 共用一个 VM →
+                        // "点课程 A 进编辑 → 返回 → 点添加课程"会复用还装着 A 的 VM
+                        // （配合 prepareNew 的旧守卫就表现为"添加课程页显示上一门课的数据"）。
+                        val targetKey = when (val t: EditTarget = current.target) {
+                            is EditTarget.New -> "course-edit-new"
+                            is EditTarget.Edit -> "course-edit-${t.courseId}-${t.sessionId}"
+                        }
                         val vm: CourseEditViewModel = viewModel(
+                            key = targetKey,
                             factory = simpleFactory { CourseEditViewModel(repository, onDataChanged) },
                         )
                         LaunchedEffect(current) {

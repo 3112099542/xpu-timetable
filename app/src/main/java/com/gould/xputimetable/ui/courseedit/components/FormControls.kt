@@ -126,10 +126,11 @@ private fun SingleSelectRow(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                        // M10：选中态去蓝（原 primaryContainer 底 + primary 边框）→ 中性底 + 黑边框
+                        .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
                         .border(
-                            width = 1.dp,
-                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            width = if (selected) 1.5.dp else 1.dp,
+                            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
                             shape = RoundedCornerShape(50),
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -138,7 +139,7 @@ private fun SingleSelectRow(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }

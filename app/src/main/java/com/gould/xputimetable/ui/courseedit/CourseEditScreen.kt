@@ -203,7 +203,7 @@ private fun EditTopBar(
                 painter = painterResource(AppIcons.check),
                 contentDescription = "保存",
                 modifier = Modifier.size(IconSize.Large),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurface,
             )
         }
     }

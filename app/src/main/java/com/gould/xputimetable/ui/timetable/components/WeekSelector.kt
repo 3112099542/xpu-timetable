@@ -119,7 +119,8 @@ fun WeekSelector(
                     painter = painterResource(AppIcons.calendarToday),
                     contentDescription = stringResource(R.string.week_back_to_current),
                     modifier = Modifier.size(IconSize.Medium),
-                    tint = if (overridden) MaterialTheme.colorScheme.primary
+                    // M10：非本周高亮改黑色（原 primary），与"蓝色字样改黑"统一
+                    tint = if (overridden) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                 )
             }
