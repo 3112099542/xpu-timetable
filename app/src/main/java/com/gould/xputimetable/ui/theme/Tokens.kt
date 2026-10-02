@@ -55,6 +55,30 @@ object Grid {
     val AxisWidth = 38.dp    // WeekGrid 与 DayHeader 必须同源
 }
 
+/**
+ * 桌面小组件（M10：头部右侧信息按可用宽度**降级**，避免窄宽度下文字被截断）。
+ *
+ * 阈值怎么来的（实测，不是拍脑袋）：
+ * - 校名「西安工程大学」16sp ≈ 96dp；右侧全量「10.2  第 1 周  周五」16sp ≈ 130dp；
+ *   加 12dp×2 内边距 → 全量约需 260dp 以上。
+ * - 只留「第 1 周  周五」≈ 80dp → 约需 200dp。
+ * - 只留「周五」≈ 32dp → 约需 150dp。
+ * 小组件单格 ≈ 84dp（本机实测 84.1dp），故 4 格(≈336) 可全量、3 格(≈252) 显示周次+周几、
+ * 2 格(≈168) 只显示周几。
+ *
+ * ⚠️ 实测坑（模拟器 AOSP Launcher3，2026-10-02）：`LocalSize` 报的是**声明的最小尺寸**，
+ * 不是实际摆放尺寸 —— 小组件实际内容宽约 201dp，而 LocalSize 恒为
+ * `110.1dp × 88dp`（= today_widget_info.xml 的 minResizeWidth / minHeight），缩放后也不变。
+ * 后果：该启动器上永远走保守档（只显示周几）。这是**安全的**（宁少不截断），
+ * 但要拿到真尺寸需要改从 `AppWidgetManager.getAppWidgetOptions()` 读 OPTION_APPWIDGET_MIN_WIDTH。
+ */
+object Widget {
+    /** 显示「日期 + 周次 + 周几」所需的最小宽度（约 4 格及以上）。 */
+    val HeaderFullMinWidth = 280.dp
+    /** 显示「周次 + 周几」所需的最小宽度（约 3 格）；再窄就只显示周几。 */
+    val HeaderWeekMinWidth = 200.dp
+}
+
 /** 「我的」页分组列表（M9：仿系统设置页的「分组标题 + 条目 + 右箭头」结构）。 */
 object ListRow {
     val MinHeight = 52.dp        // 触摸目标 ≥44dp（手册硬性要求）

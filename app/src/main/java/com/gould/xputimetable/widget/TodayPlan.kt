@@ -13,6 +13,9 @@
  */
 package com.gould.xputimetable.widget
 
+import androidx.compose.ui.unit.Dp
+import com.gould.xputimetable.ui.theme.Widget
+
 /** 今日一节课（小组件只读视图所需的最小字段）。 */
 data class TodayItem(
     val startSection: Int,
@@ -51,6 +54,48 @@ data class TodayPlan(
     val overflowCount: Int,
     val emptyReason: EmptyReason,
 )
+
+/**
+ * 头部右侧信息的详细程度（M10）：宽度不够时**按优先级砍内容**，而不是缩字号
+ * （M5 需求 7/8 明确要求"右上与校名同字号"，缩字号会破坏该决定）。
+ * 砍的顺序：先「日期」，再「第 N 周」；「周几」最后保留。
+ */
+enum class HeaderDetail {
+    /** 日期 + 第 N 周 + 周几。 */
+    FULL,
+
+    /** 第 N 周 + 周几（砍日期）。 */
+    NO_DATE,
+
+    /** 仅周几。 */
+    WEEKDAY_ONLY,
+}
+
+/** 按可用宽度决定详细程度（纯函数，阈值见 ui/theme/Tokens.kt 的 Widget）。 */
+fun headerDetailFor(width: Dp): HeaderDetail = when {
+    width >= Widget.HeaderFullMinWidth -> HeaderDetail.FULL
+    width >= Widget.HeaderWeekMinWidth -> HeaderDetail.NO_DATE
+    else -> HeaderDetail.WEEKDAY_ONLY
+}
+
+/**
+ * 组装头部右上文案（纯函数，便于单测）。
+ *
+ * @param dateText    形如 "10.2"
+ * @param weekNumber  第几周；null = 当前不在学期周内（假期越界）→ 不显示周次
+ * @param weekdayText 形如 "周五"；null = 无学期 → 不显示周几
+ * @param detail      详细程度；null 项一律不显示
+ */
+fun headerRightText(
+    dateText: String,
+    weekNumber: Int?,
+    weekdayText: String?,
+    detail: HeaderDetail,
+): String = buildList {
+    if (detail == HeaderDetail.FULL) add(dateText)
+    if (detail != HeaderDetail.WEEKDAY_ONLY) weekNumber?.let { add("第 $it 周") }
+    weekdayText?.let { add(it) }
+}.joinToString("  ")
 
 object TodayPlanBuilder {
 

@@ -40,7 +40,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="10.2  第 1 周  周五"
+            android:text="第 1 周  周五"
             android:textColor="@color/widget_preview_secondary"
             android:textSize="16sp" />
     </LinearLayout>

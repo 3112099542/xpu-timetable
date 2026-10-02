@@ -15,6 +15,7 @@
  */
 package com.gould.xputimetable.widget
 
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
@@ -76,6 +77,7 @@ internal fun TodayWidgetContent(plan: TodayPlan, weekNumber: Int?) {
         WidgetHeader(
             weekNumber = weekNumber,
             hasTerm = plan.emptyReason != EmptyReason.NO_TERM,
+            width = size.width,
         )
         Spacer(GlanceModifier.height(6.dp))
         when (plan.emptyReason) {
@@ -118,7 +120,8 @@ private fun CompactContent(plan: TodayPlan) {
  * → 「M.d  周X」；无学期 → 仅「M.d」（无周次可显示）。
  */
 @androidx.compose.runtime.Composable
-private fun WidgetHeader(weekNumber: Int?, hasTerm: Boolean) {
+private fun WidgetHeader(weekNumber: Int?, hasTerm: Boolean, width: Dp) {
+    val today = LocalDate.now()
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -132,8 +135,15 @@ private fun WidgetHeader(weekNumber: Int?, hasTerm: Boolean) {
             ),
         )
         Spacer(GlanceModifier.defaultWeight())
+        // M10：宽度不够时按优先级砍内容（先日期、再周次，保留周几），而不是缩字号 ——
+        // 字号是同校名一致的 16sp（M5 需求 7/8），缩了会破坏该决定。
         Text(
-            text = headerRightText(weekNumber, hasTerm),
+            text = headerRightText(
+                dateText = today.format(DATE_FORMAT),
+                weekNumber = weekNumber,
+                weekdayText = if (hasTerm) weekdayCn(today.dayOfWeek.value) else null,
+                detail = headerDetailFor(width),
+            ),
             maxLines = 1,
             style = TextStyle(
                 color = GlanceTheme.colors.onSurfaceVariant,
@@ -141,16 +151,6 @@ private fun WidgetHeader(weekNumber: Int?, hasTerm: Boolean) {
             ),
         )
     }
-}
-
-/** 右上信息文本：周次仅学期周内显示，周几仅学期内显示，日期恒显示。 */
-private fun headerRightText(weekNumber: Int?, hasTerm: Boolean): String {
-    val today = LocalDate.now()
-    return buildList {
-        add(today.format(DATE_FORMAT))
-        weekNumber?.let { add("第 $it 周") }
-        if (hasTerm) add(weekdayCn(today.dayOfWeek.value))
-    }.joinToString("  ")
 }
 
 /**
