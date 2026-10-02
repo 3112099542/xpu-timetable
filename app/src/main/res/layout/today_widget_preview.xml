@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   today_widget_preview.xml —— 系统小组件选择器里的静态预览（API 31+ previewLayout）。
-  与 M4-W 改版后的真实渲染近似（M5 需求 7/8：右上 16sp onSurfaceVariant #43474E）：
-  左上校名 + 右上「M.d 第 N 周 周X」、
-  交替底色课程行（首行加粗）、底部剩余统计。背景与正式内容同款圆角。
+
+  ⚠️ 两条硬约束（2026-10-02 实测踩坑）：
+  1. **禁止使用裸 `<View>`**：启动器的预览 inflater 是受限的，会抛
+     `InflateException: Class not allowed to be inflated android.view.View`
+     → 整个预览变成「Can't load widget」。占位请用 `<TextView>`（已验证可 inflate）。
+  2. 本文件是**静态副本**，真实渲染改版后必须同步（否则选择器里显示旧样式）。
+     当前对应 M10 版式：无彩底 / 无色条，左课名+教室，**右侧上下两行**时间为上课、下课。
+
+  色值走 @color/widget_preview_*（含 values-night 变体，否则深色主题下是深字压深底）。
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -22,11 +28,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="西安工程大学"
-            android:textColor="#1A1C1E"
+            android:textColor="@color/widget_preview_title"
             android:textStyle="bold"
             android:textSize="16sp" />
 
-        <View
+        <TextView
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
@@ -34,57 +40,129 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="9.17  第 1 周  周四"
-            android:textColor="#43474E"
+            android:text="10.2  第 1 周  周五"
+            android:textColor="@color/widget_preview_secondary"
             android:textSize="16sp" />
     </LinearLayout>
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
+        android:orientation="horizontal"
         android:paddingLeft="6dp"
         android:paddingRight="6dp"
         android:paddingTop="4dp"
-        android:paddingBottom="4dp"
-        android:background="#81D8CF"
-        android:text="08:00  高等数学 · A-101"
-        android:textColor="#1A1C1E"
-        android:textStyle="bold"
-        android:textSize="13sp" />
+        android:paddingBottom="4dp">
 
-    <TextView
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="高等数学"
+                android:textColor="@color/widget_preview_title"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="A-101"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="14:00"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="15:50"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
+        android:orientation="horizontal"
         android:paddingLeft="6dp"
         android:paddingRight="6dp"
         android:paddingTop="4dp"
-        android:paddingBottom="4dp"
-        android:background="#F8F5D6"
-        android:text="10:00  大学英语 · B-203"
-        android:textColor="#1A1C1E"
-        android:textSize="13sp" />
+        android:paddingBottom="4dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:paddingLeft="6dp"
-        android:paddingRight="6dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
-        android:background="#81D8CF"
-        android:text="14:00  体育 · 田径场"
-        android:textColor="#1A1C1E"
-        android:textSize="13sp" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="大学物理实验"
+                android:textColor="@color/widget_preview_title"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="B-203"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="end">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="16:00"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="17:50"
+                android:textColor="@color/widget_preview_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:text="今天还有 3 节课，加油！"
-        android:textColor="#43474E"
+        android:textColor="@color/widget_preview_secondary"
         android:textSize="12sp" />
 
 </LinearLayout>

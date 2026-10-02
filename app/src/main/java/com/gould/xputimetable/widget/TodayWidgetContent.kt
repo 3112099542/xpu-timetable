@@ -5,8 +5,9 @@
  * 头部（仿 WakeUp，所有状态共用渲染——P1 修复：空态也带头部）：左「西安工程大学」；
  *   右「M.d [第 N 周] 周X」16sp onSurfaceVariant 右对齐（M5 需求 7/8：与校名
  *   同字号、与「今天没有课啦」同色，不再用 primary）。
- * 列表：只渲染未结束课程（plan.remaining），行底色 #81D8CF/#F8F5D6 按行索引
- *   逐行交替（暗色为半透明变体），课程色条保留，首行课名加粗（正在上/下一节）。
+ * 列表：只渲染未结束课程（plan.remaining）。M10 按老大要求改为**纯文字行**：
+ *   去掉行的彩色交替底与左侧课程色条；每行左侧课名（+教室），**右侧上下两行**显示
+ *   上课时间与下课时间（上=开始、下=结束）。首行课名加粗（正在上/下一节）。
  * 底部：「今天还有 x 节课，加油！」（x = remainingTotal，含被折叠的）。
  * 空态：NO_TERM 引导导入；ALL_DONE_OR_NONE 居中颜文字 +「今天没有课啦」
  *   （颜文字为产品指定，不受"无 emoji"纪律约束）。
@@ -14,7 +15,6 @@
  */
 package com.gould.xputimetable.widget
 
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
@@ -23,11 +23,9 @@ import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.action.actionStartActivity
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.layout.Alignment
-import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -42,7 +40,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.LocalSize
 import com.gould.xputimetable.MainActivity
 import com.gould.xputimetable.R
-import com.gould.xputimetable.ui.theme.CoursePalette
 import com.gould.xputimetable.ui.theme.DarkOnSurface
 import com.gould.xputimetable.ui.theme.LightOnSurface
 import com.gould.xputimetable.ui.timetable.components.weekdayCn
@@ -58,16 +55,6 @@ private const val EMPTY_TERM_SUBTITLE = "打开 App 导入"
 private const val ALL_DONE_FACE = "(๑˃̵ᴗ˂̵)"
 private const val ALL_DONE_TEXT = "今天没有课啦"
 private const val FOOTER_TEMPLATE = "今天还有 %d 节课，加油！"
-
-// R-交替底色：偶数行薄荷绿、奇数行米黄；暗色降为半透明叠加在暗 surface 上
-private val ROW_BG_EVEN = ColorProvider(
-    day = Color(0xFF81D8CF),
-    night = Color(0xFF81D8CF).copy(alpha = 0.20f),
-)
-private val ROW_BG_ODD = ColorProvider(
-    day = Color(0xFFF8F5D6),
-    night = Color(0xFFF8F5D6).copy(alpha = 0.16f),
-)
 
 // 时间/教室 = onSurface 的 70%（两个彩底上均比 onSurfaceVariant 深一档，保证可读）
 private val TIME_COLOR = ColorProvider(
@@ -166,34 +153,24 @@ private fun headerRightText(weekNumber: Int?, hasTerm: Boolean): String {
     }.joinToString("  ")
 }
 
-/** 课程行：交替底色 + 课程色条 + 时间 + 课名 + 教室；首行（正在上/下一节）课名加粗。 */
+/**
+ * 课程行（M10 改版）：**无彩色底、无色条**，靠行间距分隔。
+ *   左列：课名（首行加粗）+ 教室；右列：上课时间在上、下课时间在下（右对齐）。
+ * 为什么要停掉色标：一套彩底 + 色条在 88dp 的小卡片里占比过大，去掉后信息密度反而更高。
+ */
 @androidx.compose.runtime.Composable
 private fun CourseRow(item: TodayItem, index: Int, compact: Boolean = false) {
+    val timeStyle = TextStyle(
+        color = TIME_COLOR,
+        fontSize = if (compact) 11.sp else 12.sp,
+    )
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .cornerRadius(8.dp)
-            .background(if (index % 2 == 0) ROW_BG_EVEN else ROW_BG_ODD)
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = GlanceModifier
-                .width(4.dp)
-                .height(if (compact) 18.dp else 28.dp)
-                .cornerRadius(2.dp)
-                .background(CoursePalette.base(item.colorTag)),
-        ) {}
-        Spacer(GlanceModifier.width(6.dp))
-        Text(
-            text = formatMinute(item.startMinute),
-            style = TextStyle(
-                color = TIME_COLOR,
-                fontSize = if (compact) 11.sp else 12.sp,
-            ),
-        )
-        Spacer(GlanceModifier.width(6.dp))
-        Column(modifier = GlanceModifier.fillMaxWidth()) {
+        Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = item.courseName,
                 maxLines = 1,
@@ -205,15 +182,14 @@ private fun CourseRow(item: TodayItem, index: Int, compact: Boolean = false) {
             )
             val classroom = item.classroom
             if (!classroom.isNullOrBlank() && !compact) {
-                Text(
-                    text = classroom,
-                    maxLines = 1,
-                    style = TextStyle(
-                        color = TIME_COLOR,
-                        fontSize = 12.sp,
-                    ),
-                )
+                Text(text = classroom, maxLines = 1, style = timeStyle)
             }
+        }
+        Spacer(GlanceModifier.width(8.dp))
+        // 右侧时间列：上面是上课时间，下面是下课时间
+        Column(horizontalAlignment = Alignment.End) {
+            Text(text = formatMinute(item.startMinute), style = timeStyle)
+            Text(text = formatMinute(item.endMinute), style = timeStyle)
         }
     }
 }

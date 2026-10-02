@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  小组件「选择器静态预览」的文字色（深色主题）。
+  与 drawable-night/widget_bg_rounded.xml（#111318）配对：浅字压深底。
+  不加这一份的话，深色主题下预览是 #1A1C1E 的深字压 #111318 深底 —— 等于看不见。
+-->
+<resources>
+    <color name="widget_preview_title">#E6E1E5</color>
+    <color name="widget_preview_secondary">#C3C7CF</color>
+</resources>

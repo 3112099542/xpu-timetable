@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  小组件「选择器静态预览」的文字色（浅色主题）。
+  与 drawable/widget_bg_rounded.xml（#EEEDF3）配对：深字压浅底。
+  深色变体见 values-night/colors_widget_preview.xml —— 两套必须成对维护。
+-->
+<resources>
+    <color name="widget_preview_title">#1A1C1E</color>
+    <color name="widget_preview_secondary">#43474E</color>
+</resources>
