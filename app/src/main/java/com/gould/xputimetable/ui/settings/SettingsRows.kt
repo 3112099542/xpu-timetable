@@ -41,46 +41,23 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gould.xputimetable.ui.components.AppIcons
+import com.gould.xputimetable.ui.components.GroupCard
+import com.gould.xputimetable.ui.components.GroupHeader
 import com.gould.xputimetable.ui.theme.ListRow
 
 /**
- * 分组卡片（M11）：把同类设置项装进一个圆角容器，组内条目用横线分隔。
- *
- * 参照产品负责人给的两张设置页截图（系统设置 / QQ 设置）的版式：
- * 组标题在卡片**外面**（灰小字），卡片本身 = 圆角 + 极淡底色 + 发丝边框。
- * 之所以加容器而不是只留横线：相邻两组的边界此前只能靠间距区分，视觉上是平的一片。
+ * 分组卡片（M11）：卡片本体已下沉到 `ui.components.CardGroup`（GroupCard/GroupHeader），
+ * 与「添加课程」页共用同一套实现。这里保留旧名做转发，避免改动整个 settings 包的调用点。
  */
 @Composable
 internal fun SettingsGroupCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
-) {
-    val shape = RoundedCornerShape(ListRow.CardCorner)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = ListRow.DividerAlpha),
-                shape = shape,
-            )
-            .padding(horizontal = ListRow.CardPadding, vertical = ListRow.CardPaddingV),
-        content = content,
-    )
-}
+) = GroupCard(modifier = modifier, content = content)
 
-/** 分组标题（小号灰字，靠上留出与上一组的间距）。 */
+/** 分组标题：转发到共享实现。 */
 @Composable
-internal fun SettingsGroupHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = ListRow.GroupSpacing, bottom = 4.dp),
-    )
-}
+internal fun SettingsGroupHeader(text: String) = GroupHeader(text)
 
 /** 可进二级页的条目：右侧「>」（与系统设置页一致）。 */
 @Composable
